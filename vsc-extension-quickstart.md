@@ -7,7 +7,20 @@
   * The sample plugin registers a command and defines its title and command name. With this information VS Code can show the command in the command palette. It doesn’t yet need to load the plugin.
 * `src/extension.ts` - this is the main file where you will provide the implementation of your command.
   * The file exports one function, `activate`, which is called the very first time your extension is activated (in this case by executing the command). Inside the `activate` function we call `registerCommand`.
-  * We pass the function containing the implementation of the command as the second parameter to `registerCommand`.
+
+### Folder Structure Overview
+
+- `src/commands/`: Implementation of the extension's commands.
+  - `actions.ts`: Contains the logic for specific command actions (e.g., `glyphLLMCaller`, `glyphTest`).
+- `src/providers/`: Data providers, such as TreeView providers or LLM completion providers.
+  - `llm/`: Providers related to LLM interactions.
+- `src/services/`: Core logic and service-level components.
+  - `editor.service.ts`: Handles interactions with the VS Code editor (selections, text changes).
+- `src/utils/`: Utility classes and helper functions.
+  - `command-manager.ts`: A helper to simplify command registration and management.
+- `src/constants.ts`: Global constants used throughout the extension (e.g., command IDs).
+- `src/test/`: Contains unit and integration tests for the extension.
+- `.vscode/`: Configuration for VS Code debugging and settings.
 
 ## Setup
 

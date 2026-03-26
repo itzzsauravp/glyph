@@ -14,8 +14,12 @@
   "contributes": {
     "commands": [
       {
-        "command": "glyph.helloWorld",
-        "title": "Hello World"
+        "command": "glyph.test",
+        "title": "Glyph start(test)"
+      },
+      {
+        "command": "glyph.code_generator",
+        "title": "Glyph: Code Generator"
       }
     ]
   },

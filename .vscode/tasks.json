@@ -6,8 +6,8 @@
 		{
 			"type": "npm",
 			"script": "watch",
-			"problemMatcher": "$ts-webpack-watch",
 			"isBackground": true,
+			"problemMatcher": "$ts-watch",
 			"presentation": {
 				"reveal": "never",
 				"group": "watchers"
