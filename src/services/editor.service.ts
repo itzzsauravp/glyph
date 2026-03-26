@@ -73,6 +73,28 @@ export default class EditorService {
     }
 
     /**
+     * Inserts the generated documentation directly above the current selection.
+     */
+    public insertDocumentation = async (docString: string) => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
+
+        const selection = editor.selection;
+
+        const insertPosition = selection.start;
+
+        const success = await editor.edit(editBuilder => {
+            editBuilder.insert(insertPosition, `${docString}\n`);
+        });
+
+        if (success) {
+            await vscode.commands.executeCommand('editor.action.formatDocument');
+            vscode.window.showInformationMessage("Documentation generated and inserted!");
+        }
+    }
+
+
+    /**
      * Gets the selected text from the active editor.
      * @deprecated Use getSelectedText from editor.utils.ts directly if you have access to the editor object.
      */
