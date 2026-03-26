@@ -20,6 +20,10 @@
       {
         "command": "glyph.code_generator",
         "title": "Glyph: Code Generator"
+      },
+      {
+        "command": "glyph.docs_generator",
+        "title": "Glyph: Docs Generator"
       }
     ],
     "configuration": {

@@ -2,7 +2,6 @@ import * as vscode from "vscode";
 import EditorService from "../services/editor.service";
 import OllamaService from "../providers/llm/Ollama";
 import { clearGhostText, getSelectedText, showLoadingGhostText } from "../utils/editor.utils";
-import { ConfigurationManager } from "../config/config";
 
 /**
  * GlyphActions is a class that contains all the command actions required for glyph to operate
@@ -11,7 +10,7 @@ export default class GlyphActions {
 
     constructor(
         private readonly editorService: EditorService,
-        private readonly configManager: ConfigurationManager
+        private readonly ollama: OllamaService,
     ) {
     }
 
@@ -31,7 +30,6 @@ export default class GlyphActions {
     public generateCode = async () => {
         let selectedEntireFile: boolean = false;
 
-        const ollam = new OllamaService(this.configManager);
 
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
@@ -54,11 +52,42 @@ export default class GlyphActions {
         try {
             showLoadingGhostText(editor, "Generating");
 
-            const resultFromLLM = await ollam.generate(prompt as string, codeContext);
+            const resultFromLLM = await this.ollama.generateCode(prompt as string, codeContext);
 
             selectedEntireFile ?
                 await this.editorService.replaceEntireFile(resultFromLLM) :
                 await this.editorService.replaceSelectionAndFormat(resultFromLLM);
+
+        } catch (error) {
+            console.error(error);
+            vscode.window.showErrorMessage((error as any).message);
+        } finally {
+            clearGhostText();
+        }
+    }
+
+    public generateDocs = async () => {
+
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
+
+        let codeContext: string;
+        const selectedText = getSelectedText(editor);
+
+        if (selectedText) {
+            codeContext = selectedText;
+            vscode.window.showInformationMessage("Read selected text.");
+        } else {
+            vscode.window.showWarningMessage("Please mark a selection to document");
+            return;
+        }
+
+        try {
+            showLoadingGhostText(editor, "Generating");
+
+            const resultFromLLM = await this.ollama.generateDocs(codeContext, editor.document.languageId);
+
+            await this.editorService.insertDocumentation(resultFromLLM);
 
         } catch (error) {
             console.error(error);
