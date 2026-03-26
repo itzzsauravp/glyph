@@ -1,48 +1,70 @@
 import * as vscode from "vscode";
-import { readFileAsText, replaceEntireFile, replaceSelectionAndFormat, showPromptInput } from "../services/editor.service";
+import EditorService from "../services/editor.service";
 import OllamaService from "../providers/llm/Ollama";
+import { clearGhostText, getSelectedText, showLoadingGhostText } from "../utils/editor.utils";
+import { ConfigurationManager } from "../config/config";
 
 /**
- * Health check type command to test whether the extension is running.
+ * GlyphActions is a class that contains all the command actions required for glyph to operate
  */
-export function glyphTest() {
-    vscode.window.showInformationMessage('Hey there!!!\nThis is a Starter test command for glyph');
-}
+export default class GlyphActions {
 
-/**
- *  Class the selected model to complete the given task 
- * changes and updates the codes for the selected area
- */
-export async function glyphCodeGenerator() {
-    let selectedEntireFile: boolean = false;
-
-    const ollam = new OllamaService();
-    const prompt = await showPromptInput();
-
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return;
-
-    let codeContext: string;
-    const selection = editor.selection;
-
-    if (!selection.isEmpty) {
-        codeContext = editor.document.getText(selection);
-        vscode.window.showInformationMessage("Read selected text.");
-    } else {
-        selectedEntireFile = true;
-        codeContext = await readFileAsText(editor.document.uri);
-        vscode.window.showInformationMessage("Read entire file.");
+    constructor(
+        private readonly editorService: EditorService,
+        private readonly configManager: ConfigurationManager
+    ) {
     }
 
-    try {
+    /**
+     * Health check type command to test whether the extension is running.
+     * Only used while in development
+     */
+    public _test = () => {
+        vscode.window.showInformationMessage('Hey there!!!\nThis is a Starter test command for glyph');
+    }
 
-        const resultFromLLM = await ollam.generate(prompt as string, codeContext);
-        selectedEntireFile ? replaceEntireFile(resultFromLLM) : replaceSelectionAndFormat(resultFromLLM);
+    /**
+     * This method uses a model to generate code
+     * 
+     * NOTE: use for existing code block, use it when needed to refactor a code
+     */
+    public generateCode = async () => {
+        let selectedEntireFile: boolean = false;
 
-    } catch (error) {
+        const ollam = new OllamaService(this.configManager);
 
-        console.error(error)
-        vscode.window.showErrorMessage((error as any).message)
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
 
+        const prompt = await this.editorService.showPromptInput();
+        if (!prompt) return;
+
+        let codeContext: string;
+        const selectedText = getSelectedText(editor);
+
+        if (selectedText) {
+            codeContext = selectedText;
+            vscode.window.showInformationMessage("Read selected text.");
+        } else {
+            selectedEntireFile = true;
+            codeContext = await this.editorService.readFileAsText(editor.document.uri);
+            vscode.window.showInformationMessage("Read entire file.");
+        }
+
+        try {
+            showLoadingGhostText(editor, "Generating");
+
+            const resultFromLLM = await ollam.generate(prompt as string, codeContext);
+
+            selectedEntireFile ?
+                await this.editorService.replaceEntireFile(resultFromLLM) :
+                await this.editorService.replaceSelectionAndFormat(resultFromLLM);
+
+        } catch (error) {
+            console.error(error);
+            vscode.window.showErrorMessage((error as any).message);
+        } finally {
+            clearGhostText();
+        }
     }
 }

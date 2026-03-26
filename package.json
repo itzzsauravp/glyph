@@ -21,7 +21,22 @@
         "command": "glyph.code_generator",
         "title": "Glyph: Code Generator"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Glyph",
+      "properties": {
+        "glyph.modelName": {
+          "type": "string",
+          "default": "qwen2.5-coder:3b",
+          "description": "The name of the Ollama model to use for generation."
+        },
+        "glyph.base_url": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "The URL of your Ollama instance."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

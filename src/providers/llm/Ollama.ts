@@ -1,14 +1,24 @@
+import { ConfigurationManager } from "../../config/config";
 import LLMService from "./base";
 
+// TODO: find whats models user has installed and give them to choose form the list of modles
 export default class OllamaService extends LLMService {
 
-    extractCode(text: string): string {
+    constructor(private readonly configManager: ConfigurationManager) {
+        super();
+    }
+
+    private extractCode(text: string): string {
         const match = text.match(/```(?:\w+)?\n([\s\S]*?)```/);
         return match ? match[1].trim() : text;
     }
 
-    public async generate(prompt: string, code: string): Promise<string> {
+    private extractConfig() {
+        return this.configManager.getExtensionConfig()
+    }
 
+    public async generate(prompt: string, code: string): Promise<string> {
+        const { endpoint, model } = this.extractConfig()
         const systemPrompt = `
         You are a specialized programming assistant. 
         Your task is to modify the provided code according to the instructions.
@@ -19,11 +29,11 @@ export default class OllamaService extends LLMService {
         4. If the instruction is 'Refactor', return the full refactored code.
         5. Do not include any backtiks.
     `;
-        const response = await fetch('http://localhost:11434/api/generate', {
+        const response = await fetch(`${endpoint}/api/generate`, {
             method: 'POST',
             body: JSON.stringify({
                 system: systemPrompt,
-                model: 'qwen2.5:1.5b',
+                model,
                 prompt: `Instructions: ${prompt}\n\nCode to modify:\n${code}`,
                 stream: false
             })

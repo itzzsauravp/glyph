@@ -1,88 +1,84 @@
 import * as vscode from 'vscode';
-import { ghostTextDecoration } from '../utils/editor.utils';
+import { getFullFileRange, getSelectedText } from '../utils/editor.utils';
 
-export async function readFileAsText(fileUri: vscode.Uri): Promise<string> {
-    try {
-        const rawData = await vscode.workspace.fs.readFile(fileUri);
-        const decodedText = new TextDecoder().decode(rawData);
+export default class EditorService {
 
-        return decodedText;
-    } catch (error) {
-        console.error(`Error reading file: ${error}`);
-        return "";
-    }
-}
+    constructor() { }
 
-export function getSelectedText(): string | null {
-    const editor = vscode.window.activeTextEditor;
-
-    if (!editor) {
-        return null;
+    /**
+     * Reads the content of a file given its URI.
+     */
+    public readFileAsText = async (fileUri: vscode.Uri): Promise<string> => {
+        try {
+            const rawData = await vscode.workspace.fs.readFile(fileUri);
+            return new TextDecoder().decode(rawData);
+        } catch (error) {
+            console.error(`Error reading file: ${error}`);
+            return "";
+        }
     }
 
-    const selection = editor.selection;
-    console.log("This is the selection:", selection)
+    /**
+     * Shows an input box to get a prompt from the user.
+     */
+    public showPromptInput = async (): Promise<string | undefined> => {
+        const result = await vscode.window.showInputBox({
+            placeHolder: "Explain this code...",
+            prompt: "Enter instructions for the LLM",
+            ignoreFocusOut: true
+        });
 
-    if (selection.isEmpty) {
-        return "";
+        if (!result) {
+            vscode.window.showErrorMessage("Prompt field cannot be empty");
+            return;
+        }
+
+        return result;
     }
 
-    const selectedText = editor.document.getText(selection);
+    /**
+     * Replaces the current selection with new text and formats it.
+     */
+    public replaceSelectionAndFormat = async (newText: string) => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
 
-    return selectedText;
-}
+        const success = await editor.edit(editBuilder => {
+            editBuilder.replace(editor.selection, newText);
+        });
 
-export async function showPromptInput() {
-    const result = await vscode.window.showInputBox({
-        placeHolder: "Explain this code...",
-        prompt: "Enter instructions for the LLM",
-        ignoreFocusOut: true
-    });
-
-    if (!result) {
-        vscode.window.showErrorMessage("Prompt field cannot be null")
-        return
+        if (success) {
+            await vscode.commands.executeCommand('editor.action.formatSelection');
+            vscode.window.showInformationMessage("AI code inserted and formatted!");
+        }
     }
 
-    return result;
-}
+    /**
+     * Replaces the entire document content with new text and formats it.
+     */
+    public replaceEntireFile = async (newText: string) => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
 
-export async function replaceSelectionAndFormat(newText: string) {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return;
+        const fullRange = getFullFileRange(editor);
 
-    const success = await editor.edit(editBuilder => {
-        editBuilder.replace(editor.selection, newText);
-    });
+        const success = await editor.edit(editBuilder => {
+            editBuilder.replace(fullRange, newText);
+        });
 
-    if (success) {
-        await vscode.commands.executeCommand('editor.action.formatSelection');
-
-        vscode.window.showInformationMessage("AI code inserted and formatted!");
+        if (success) {
+            await vscode.commands.executeCommand('editor.action.formatSelection');
+            vscode.window.showInformationMessage("AI code inserted and formatted!");
+        }
     }
-}
 
-export async function replaceEntireFile(newText: string) {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return;
-
-    const document = editor.document;
-
-    const firstLine = document.lineAt(0);
-    const lastLine = document.lineAt(document.lineCount - 1);
-
-    const fullRange = new vscode.Range(
-        firstLine.range.start,
-        lastLine.range.end
-    );
-
-    const success = await editor.edit(editBuilder => {
-        editBuilder.replace(fullRange, newText);
-    });
-
-    if (success) {
-        await vscode.commands.executeCommand('editor.action.formatSelection');
-
-        vscode.window.showInformationMessage("AI code inserted and formatted!");
+    /**
+     * Gets the selected text from the active editor.
+     * @deprecated Use getSelectedText from editor.utils.ts directly if you have access to the editor object.
+     */
+    public getSelectedTextFromActiveEditor = (): string | null => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return null;
+        return getSelectedText(editor);
     }
 }
