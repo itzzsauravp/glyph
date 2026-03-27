@@ -1,18 +1,13 @@
 import * as vscode from "vscode";
-import { exec } from "node:child_process"
-import { promisify } from "node:util"
-
-const execPromise = promisify(exec);
 
 export default class OllamaHealth {
 
     constructor() { }
 
     public async preflight() {
-        const ollamaInstalled = this.isInstalled();
+        const ollamaInstalled = this.isReachable();
         if (!ollamaInstalled) {
-            // may be give user a way to install ollama form here itself
-            vscode.window.showErrorMessage("Ollama not installed");
+            vscode.window.showErrorMessage("Ollama servicee not reachable. Please make sure installed and running");
             console.error("Ollama not installed")
             return false;
         }
@@ -24,32 +19,27 @@ export default class OllamaHealth {
         return true;
     }
 
-    async isInstalled() {
+    async isReachable() {
         try {
-            await execPromise("ollama --version");
-            return true;
+            const response = await fetch("http://127.0.0.1:11434/api/tags");
+            console.log(response);
+            return response.ok;
         } catch (error) {
-            console.error("ollama not installed");
+            console.error("Ollama service not reachable");
             return false;
         }
     }
 
     async getOllamaModels(): Promise<Array<string>> {
         try {
-            const { stdout } = await execPromise("ollama list");
+            const response = await fetch("http://127.0.0.1:11434/api/tags");
+            console.log(response);
+            if (!response.ok) return [];
 
-            const models = stdout
-                .split("\n")
-                .slice(1)
-                .map((line) => line.trim())
-                .filter(Boolean)
-                .map((line) => {
-                    return line.split(/\s+/)[0];
-                });
-
-            return models;
+            const data = await response.json() as { models: { name: string }[] };
+            console.log(data.models.map((m) => m.name))
+            return data.models.map(m => m.name);
         } catch (err) {
-            console.error("Error fetching models:", err);
             return [];
         }
     }
