@@ -1,8 +1,15 @@
 import * as vscode from "vscode";
+import GlyphConfig from "../config/glyph.config";
 
 export default class OllamaHealth {
 
-    constructor() { }
+    constructor(
+        private readonly glyphConfig: GlyphConfig
+    ) { }
+
+    private get baseUrl() {
+        return this.glyphConfig.getExtensionConfig().endpoint;
+    }
 
     public async preflight() {
         const ollamaInstalled = this.isReachable();
@@ -21,7 +28,7 @@ export default class OllamaHealth {
 
     async isReachable() {
         try {
-            const response = await fetch("http://127.0.0.1:11434/api/tags");
+            const response = await fetch(`${this.baseUrl}/api/tags`);
             return response.ok;
         } catch (error) {
             console.error("Ollama service not reachable");
@@ -31,7 +38,7 @@ export default class OllamaHealth {
 
     async getOllamaModels(): Promise<Array<string>> {
         try {
-            const response = await fetch("http://127.0.0.1:11434/api/tags");
+            const response = await fetch(`${this.baseUrl}/api/tags`);
             if (!response.ok) return [];
 
             const data = await response.json() as { models: { name: string }[] };
@@ -43,7 +50,7 @@ export default class OllamaHealth {
 
     async getModelsForPicker(): Promise<vscode.QuickPickItem[]> {
         try {
-            const response = await fetch("http://127.0.0.1:11434/api/tags");
+            const response = await fetch(`${this.baseUrl}/api/tags`);
             if (!response.ok) return [];
 
             const data = await response.json() as { models: { name: string }[] };

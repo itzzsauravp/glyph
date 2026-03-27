@@ -20,21 +20,14 @@ export default class GlyphApp {
     private readonly cmdMngr: CommandManager;
 
     constructor(context: vscode.ExtensionContext) {
-        this.ollamaHealth = new OllamaHealth();
-        this.glyphConfig = new GlyphConfig();
-        this.ollamaService = new OllamaService(this.glyphConfig);
-        this.editorUI = new EditorUIService();
-        this.editorService = new EditorService(this.editorUI);
         this.cmdMngr = new CommandManager(context);
     }
 
     public async initialize() {
         this.registerServices();
 
-        // Register commands immediately so VS Code knows they exist upon activation.
         this.registerCommands();
 
-        // Non-blocking preflight check for Ollama.
         const preflightPassed = await this.ollamaHealth.preflight();
         if (!preflightPassed) {
             vscode.window.showErrorMessage("Preflight failed, please check the logs to see why");
@@ -43,8 +36,8 @@ export default class GlyphApp {
     }
 
     private registerServices() {
-        this.ollamaHealth = new OllamaHealth();
         this.glyphConfig = new GlyphConfig();
+        this.ollamaHealth = new OllamaHealth(this.glyphConfig);
         this.ollamaService = new OllamaService(this.glyphConfig);
         this.editorUI = new EditorUIService();
         this.editorService = new EditorService(this.editorUI);
