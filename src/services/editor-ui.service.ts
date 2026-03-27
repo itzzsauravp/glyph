@@ -2,33 +2,47 @@ import * as vscode from 'vscode';
 
 export default class EditorUIService {
     private activeLoadingDecoration: vscode.TextEditorDecorationType | undefined;
+    private animationInterval: NodeJS.Timeout | undefined;
 
     /**
      * Shows a "ghost text" decoration in the editor to indicate loading/generation.
      */
-    public showLoadingGhostText(editor: vscode.TextEditor, text: string = "Generating") {
-        if (this.activeLoadingDecoration) {
-            this.activeLoadingDecoration.dispose();
-        }
+    public showLoadingGhostText(editor: vscode.TextEditor, baseText: string = "Generating") {
+        this.clearGhostText();
 
-        this.activeLoadingDecoration = vscode.window.createTextEditorDecorationType({
-            after: {
-                contentText: ` ${text}...`,
-                color: new vscode.ThemeColor('editorCodeLens.foreground'),
-                fontStyle: 'italic',
+        const frames = [".  ", ".. ", "...", " ..", "  ."];
+        let step = 0;
+
+        this.animationInterval = setInterval(() => {
+            if (this.activeLoadingDecoration) {
+                this.activeLoadingDecoration.dispose();
             }
-        });
 
-        const position = editor.selection.active;
-        const range = new vscode.Range(position, position);
+            this.activeLoadingDecoration = vscode.window.createTextEditorDecorationType({
+                after: {
+                    contentText: ` ${baseText}${frames[step]}`,
+                    color: 'rgba(128, 128, 128, 0.2)',
+                    fontStyle: 'italic',
+                    margin: '0 0 0 1ch'
+                }
+            });
 
-        editor.setDecorations(this.activeLoadingDecoration, [range]);
+            const position = editor.selection.active;
+            const range = new vscode.Range(position, position);
+            editor.setDecorations(this.activeLoadingDecoration, [range]);
+
+            step = (step + 1) % frames.length;
+        }, 300);
     }
 
     /**
      * Clears any active ghost text decoration.
      */
     public clearGhostText() {
+        if (this.animationInterval) {
+            clearInterval(this.animationInterval);
+            this.animationInterval = undefined;
+        }
         if (this.activeLoadingDecoration) {
             this.activeLoadingDecoration.dispose();
             this.activeLoadingDecoration = undefined;
