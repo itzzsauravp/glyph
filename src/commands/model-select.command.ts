@@ -15,26 +15,28 @@ export default class ModelSelect extends BaseCommand {
     public id: string = 'glyph.model_select';
 
     public action = async () => {
-
         const items = await this.ollamaHealth.getModelsForPicker();
-        console.log(items);
+        const { model: currentModel } = this.glyphConfig.getExtensionConfig();
 
-        if (!items.length) {
-            console.log(items);
-            vscode.window.showErrorMessage("No models found. Install and run a model before picking one");
-            return;
-        }
+        const itemsWithSelection = items.map(item => {
+            const isActive = item.label === currentModel;
+            return {
+                ...item,
+                description: isActive ? `$(check) ACTIVE | ${item.description}` : item.description,
+                detail: isActive ? "Current selection" : item.detail
+            };
+        });
 
-        const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: "Select a model for Glyph"
-        })
+        const selected = await vscode.window.showQuickPick(itemsWithSelection, {
+            placeHolder: "Select a model for Glyph",
+        });
 
         if (!selected) {
-            vscode.window.showErrorMessage("Error occured during model selection. Please check logs");
             return;
         }
 
-        this.glyphConfig.updateModel(selected.label);
+        await this.glyphConfig.updateModel(selected.label);
 
+        console.log(items, itemsWithSelection);
     };
 }
