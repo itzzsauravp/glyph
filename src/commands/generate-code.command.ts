@@ -17,11 +17,12 @@ export default class GenerateCode extends BaseCommand {
     public id: string = "glyph.code";
 
     public action = async (): Promise<void> => {
-        let selectedEntireFile: boolean = false;
-
 
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
+
+        const savedUri = editor.document.uri;
+        const savedRange = editor.selection;
 
         const prompt = await this.editorService.showPromptInput();
         if (!prompt) return;
@@ -31,11 +32,8 @@ export default class GenerateCode extends BaseCommand {
 
         if (selectedText) {
             codeContext = selectedText;
-            vscode.window.showInformationMessage("Read selected text.");
         } else {
-            selectedEntireFile = true;
             codeContext = await this.editorService.readFileAsText(editor.document.uri);
-            vscode.window.showInformationMessage("Read entire file.");
         }
 
         try {
@@ -43,9 +41,7 @@ export default class GenerateCode extends BaseCommand {
 
             const resultFromLLM = await this.ollamaService.generateCode(prompt as string, codeContext);
 
-            selectedEntireFile ?
-                await this.editorService.replaceEntireFile(resultFromLLM) :
-                await this.editorService.replaceSelectionAndFormat(resultFromLLM);
+            await this.editorService.replaceAndFormat(savedUri, savedRange, resultFromLLM);
 
         } catch (error) {
             console.error(error);

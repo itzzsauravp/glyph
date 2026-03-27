@@ -37,60 +37,56 @@ export default class EditorService {
     }
 
     /**
-     * Replaces the current selection with new text and formats it.
+     * 
+     * @param fileUri File where the generate and replace is going to happen.
+     * @param range The range of the original code Ex: line 1 to 32.
+     * @param data The code respose from the LLM.
      */
-    public replaceSelectionAndFormat = async (newText: string) => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) return;
+    public async replaceAndFormat(fileUri: vscode.Uri, range: vscode.Range, data: string) {
+        const edit = new vscode.WorkspaceEdit();
 
-        const success = await editor.edit(editBuilder => {
-            editBuilder.replace(editor.selection, newText);
-        });
+        edit.replace(fileUri, range, data);
+
+        const success = await vscode.workspace.applyEdit(edit);
 
         if (success) {
+            const document = await vscode.workspace.openTextDocument(fileUri);
+            const editor = await vscode.window.showTextDocument(document);
+
+            editor.selection = new vscode.Selection(range.start, range.end);
             await vscode.commands.executeCommand('editor.action.formatSelection');
-            vscode.window.showInformationMessage("AI code inserted and formatted!");
+
+            await document.save();
         }
     }
 
     /**
-     * Replaces the entire document content with new text and formats it.
+     * 
+     * @param fileUri File where the generate and replace is going to happen.
+     * @param range The range of the original code Ex: line 1 to 32.
+     * @param data The code respose from the LLM.
      */
-    public replaceEntireFile = async (newText: string) => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) return;
+    public async insertAndFormat(fileUri: vscode.Uri, range: vscode.Range, data: string) {
+        const edit = new vscode.WorkspaceEdit();
 
-        const fullRange = this.editorUI.getFullFileRange(editor);
+        edit.insert(fileUri, range.start, data + "\n");
 
-        const success = await editor.edit(editBuilder => {
-            editBuilder.replace(fullRange, newText);
-        });
+        const success = await vscode.workspace.applyEdit(edit);
 
         if (success) {
+            const document = await vscode.workspace.openTextDocument(fileUri);
+            const editor = await vscode.window.showTextDocument(document);
+
+            const docLines = data.split('\n').length;
+            const docRange = new vscode.Range(
+                range.start.line, 0,
+                range.start.line + docLines, 0
+            );
+
+            editor.selection = new vscode.Selection(docRange.start, docRange.end);
             await vscode.commands.executeCommand('editor.action.formatSelection');
-            vscode.window.showInformationMessage("AI code inserted and formatted!");
         }
     }
 
-    /**
-     * Inserts the generated documentation directly above the current selection.
-     */
-    public insertDocumentation = async (docString: string) => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) return;
-
-        const selection = editor.selection;
-
-        const insertPosition = selection.start;
-
-        const success = await editor.edit(editBuilder => {
-            editBuilder.insert(insertPosition, `${docString}\n`);
-        });
-
-        if (success) {
-            await vscode.commands.executeCommand('editor.action.formatDocument');
-            vscode.window.showInformationMessage("Documentation generated and inserted!");
-        }
-    }
 
 }

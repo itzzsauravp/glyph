@@ -8,6 +8,7 @@ import CommandManager from "../services/command-manager.service";
 import TestCommand from "../commands/test.command";
 import GenerateCode from "../commands/generate-code.command";
 import GenerateDocs from "../commands/generate-docs.command";
+import ModelSelect from "../commands/model-select.command";
 
 export default class GlyphApp {
 
@@ -30,13 +31,15 @@ export default class GlyphApp {
     public async initialize() {
         this.registerServices();
 
+        // Register commands immediately so VS Code knows they exist upon activation.
+        this.registerCommands();
+
+        // Non-blocking preflight check for Ollama.
         const preflightPassed = await this.ollamaHealth.preflight();
         if (!preflightPassed) {
             vscode.window.showErrorMessage("Preflight failed, please check the logs to see why");
             return;
         }
-
-        this.registerCommands();
     }
 
     private registerServices() {
@@ -51,6 +54,7 @@ export default class GlyphApp {
         this.cmdMngr.register(new TestCommand());
         this.cmdMngr.register(new GenerateCode(this.editorService, this.ollamaService, this.editorUI));
         this.cmdMngr.register(new GenerateDocs(this.editorService, this.ollamaService, this.editorUI));
+        this.cmdMngr.register(new ModelSelect(this.glyphConfig, this.ollamaHealth));
     }
 
 }

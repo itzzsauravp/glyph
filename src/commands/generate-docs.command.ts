@@ -20,12 +20,14 @@ export default class GenerateDocs extends BaseCommand {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
 
+        const savedUri = editor.document.uri;
+        const savedRange = editor.selection;
+
         let codeContext: string;
         const selectedText = this.editorUI.getSelectedText(editor);
 
         if (selectedText) {
             codeContext = selectedText;
-            vscode.window.showInformationMessage("Read selected text.");
         } else {
             vscode.window.showWarningMessage("Please mark a selection to document");
             return;
@@ -36,7 +38,7 @@ export default class GenerateDocs extends BaseCommand {
 
             const resultFromLLM = await this.ollamaService.generateDocs(codeContext, editor.document.languageId);
 
-            await this.editorService.insertDocumentation(resultFromLLM);
+            await this.editorService.insertAndFormat(savedUri, savedRange, resultFromLLM);
 
         } catch (error) {
             console.error(error);

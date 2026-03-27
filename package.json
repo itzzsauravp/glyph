@@ -24,6 +24,10 @@
       {
         "command": "glyph.docs",
         "title": "Glyph: Docs Generate"
+      },
+      {
+        "command": "glyph.model_select",
+        "title": "Glyph: Select or Swap a model"
       }
     ],
     "configuration": {

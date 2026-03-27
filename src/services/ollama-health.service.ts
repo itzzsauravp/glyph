@@ -41,5 +41,22 @@ export default class OllamaHealth {
         }
     }
 
+    async getModelsForPicker(): Promise<vscode.QuickPickItem[]> {
+        try {
+            const response = await fetch("http://127.0.0.1:11434/api/tags");
+            if (!response.ok) return [];
+
+            const data = await response.json() as { models: { name: string }[] };
+
+            return data.models.map((m: any) => ({
+                label: m.name,
+                description: `${m.details.parameter_size} | ${m.details.quantization_level}`,
+                detail: `Size: ${(m.size / (1024 ** 3)).toFixed(2)} GB`,
+                alwaysShow: true
+            }));
+        } catch (err) {
+            return [];
+        }
+    }
 
 }
