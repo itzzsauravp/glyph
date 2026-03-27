@@ -1,10 +1,9 @@
-import { ConfigurationManager } from "../../config/config";
-import LLMService from "./base";
+import GlyphConfig from "../config/glyph.config";
+import LLMService from "./base-llm.service";
 
-// TODO: find whats models user has installed and give them to choose form the list of modles
 export default class OllamaService extends LLMService {
 
-    constructor(private readonly configManager: ConfigurationManager) {
+    constructor(private readonly glyphConfig: GlyphConfig) {
         super();
     }
 
@@ -14,7 +13,7 @@ export default class OllamaService extends LLMService {
     }
 
     private extractConfig() {
-        return this.configManager.getExtensionConfig()
+        return this.glyphConfig.getExtensionConfig()
     }
 
     public async generateCode(prompt: string, code: string): Promise<string> {

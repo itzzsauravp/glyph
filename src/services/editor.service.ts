@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { getFullFileRange, getSelectedText } from '../utils/editor.utils';
+import EditorUIService from './editor-ui.service';
 
 export default class EditorService {
 
-    constructor() { }
+    constructor(private readonly editorUI: EditorUIService) { }
 
     /**
      * Reads the content of a file given its URI.
@@ -60,7 +60,7 @@ export default class EditorService {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
 
-        const fullRange = getFullFileRange(editor);
+        const fullRange = this.editorUI.getFullFileRange(editor);
 
         const success = await editor.edit(editBuilder => {
             editBuilder.replace(fullRange, newText);
@@ -93,14 +93,4 @@ export default class EditorService {
         }
     }
 
-
-    /**
-     * Gets the selected text from the active editor.
-     * @deprecated Use getSelectedText from editor.utils.ts directly if you have access to the editor object.
-     */
-    public getSelectedTextFromActiveEditor = (): string | null => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) return null;
-        return getSelectedText(editor);
-    }
 }
