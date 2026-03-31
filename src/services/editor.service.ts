@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
 import EditorUIService from './editor-ui.service';
+import GlyphConfig from '../config/glyph.config';
 
 export default class EditorService {
 
-    constructor(private readonly editorUI: EditorUIService) { }
+    constructor(
+        private readonly editorUI: EditorUIService,
+        private readonly glyphConfig: GlyphConfig,
+    ) { }
 
     /**
      * Reads the content of a file given its URI.
@@ -37,54 +41,80 @@ export default class EditorService {
     }
 
     /**
-     * 
-     * @param fileUri File where the generate and replace is going to happen.
-     * @param range The range of the original code Ex: line 1 to 32.
-     * @param data The code respose from the LLM.
+     * Silently formats a range in a document without stealing focus or selection.
+     */
+    private async formatRangeSilently(fileUri: vscode.Uri, range: vscode.Range) {
+        const document = await vscode.workspace.openTextDocument(fileUri);
+        const options: vscode.FormattingOptions = {
+            tabSize: 4,
+            insertSpaces: true
+        };
+
+        const edits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
+            'vscode.executeFormatRangeProvider',
+            document.uri,
+            range,
+            options
+        );
+
+        if (edits && edits.length > 0) {
+            const formatEdit = new vscode.WorkspaceEdit();
+            formatEdit.set(document.uri, edits);
+            await vscode.workspace.applyEdit(formatEdit);
+        }
+    }
+
+    /**
+     * Replaces text in a file and formats silently without disrupting the user's workflow.
+     * @param fileUri File where the replacement will happen.
+     * @param range The range of the original code.
+     * @param data The code response from the LLM.
      */
     public async replaceAndFormat(fileUri: vscode.Uri, range: vscode.Range, data: string) {
         const edit = new vscode.WorkspaceEdit();
-
         edit.replace(fileUri, range, data);
 
         const success = await vscode.workspace.applyEdit(edit);
 
         if (success) {
-            const document = await vscode.workspace.openTextDocument(fileUri);
-            const editor = await vscode.window.showTextDocument(document);
-
-            editor.selection = new vscode.Selection(range.start, range.end);
-            await vscode.commands.executeCommand('editor.action.formatSelection');
-
-            await document.save();
+            const dataLines = data.split('\n').length;
+            const formattedRange = new vscode.Range(
+                range.start,
+                new vscode.Position(range.start.line + dataLines, 0)
+            );
+            await this.formatRangeSilently(fileUri, formattedRange);
+            await this.conditionalSave(fileUri);
         }
     }
 
     /**
-     * 
-     * @param fileUri File where the generate and replace is going to happen.
-     * @param range The range of the original code Ex: line 1 to 32.
-     * @param data The code respose from the LLM.
+     * Inserts text before a range and formats silently without disrupting the user's workflow.
+     * @param fileUri File where the insertion will happen.
+     * @param range The range before which docs will be inserted.
+     * @param data The documentation response from the LLM.
      */
     public async insertAndFormat(fileUri: vscode.Uri, range: vscode.Range, data: string) {
         const edit = new vscode.WorkspaceEdit();
-
         edit.insert(fileUri, range.start, data + "\n");
 
         const success = await vscode.workspace.applyEdit(edit);
 
         if (success) {
-            const document = await vscode.workspace.openTextDocument(fileUri);
-            const editor = await vscode.window.showTextDocument(document);
-
             const docLines = data.split('\n').length;
             const docRange = new vscode.Range(
                 range.start.line, 0,
                 range.start.line + docLines, 0
             );
+            await this.formatRangeSilently(fileUri, docRange);
+            await this.conditionalSave(fileUri);
+        }
+    }
 
-            editor.selection = new vscode.Selection(docRange.start, docRange.end);
-            await vscode.commands.executeCommand('editor.action.formatSelection');
+    private async conditionalSave(fileUri: vscode.Uri) {
+        const { autoSave } = this.glyphConfig.getExtensionConfig();
+        if (autoSave) {
+            const document = await vscode.workspace.openTextDocument(fileUri);
+            await document.save();
         }
     }
 
