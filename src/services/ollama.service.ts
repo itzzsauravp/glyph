@@ -46,13 +46,12 @@ export default class OllamaService extends LLMService {
 
         const systemPrompt = `
         You are an expert technical writer and developer.
-        Your task is to generate the most appropriate documentation comment for the provided code in ${languageId}.
+        Your task is to generate ONLY the documentation comment block (Docstring) for the provided code in ${languageId}.
         
         RULES:
         1. Return ONLY the documentation comment block.
-        2. Use the standard "Docstring" format for ${languageId} that enables IDE hover/IntelliSense.
-           - Examples: /** */ for JS/TS/Java/C++, ''' ''' or """ """ for Python, /// for C# / Rust.
-        3. Do NOT return the function code itself.
+        2. Use the standard "Docstring" format for ${languageId} (e.g., /** */ for TS, """ """ for Python).
+        3. STRICT: Do NOT return the source code itself. Do NOT return the function or class signature.
         4. Do NOT include markdown code blocks (\`\`\`).
         5. Do not include any backtiks.
         6. Focus on parameters, return values, and a brief summary.
