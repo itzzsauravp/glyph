@@ -7,7 +7,7 @@ export default class EditorUIService {
     /**
      * Shows a "ghost text" decoration in the editor to indicate loading/generation.
      */
-    public showLoadingGhostText(editor: vscode.TextEditor, baseText: string = "Generating") {
+    public showLoadingGhostText(editor: vscode.TextEditor, baseText: string = "Generating", customPosition?: vscode.Position) {
         this.clearGhostText();
 
         const frames = [".  ", ".. ", "...", " ..", "  ."];
@@ -27,7 +27,7 @@ export default class EditorUIService {
                 }
             });
 
-            const position = editor.selection.active;
+            const position = customPosition || editor.selection.active;
             const range = new vscode.Range(position, position);
             editor.setDecorations(this.activeLoadingDecoration, [range]);
 
