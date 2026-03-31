@@ -6,9 +6,10 @@ export default class GlyphConfig {
 
         const config = vscode.workspace.getConfiguration('glyph');
         const model = config.get<string>('modelName', '');
-        const endpoint = config.get<string>('endpoint', 'http://localhost:11434');
+        const endpoint = config.get<string>('base_url', 'http://localhost:11434');
+        const autoSave = config.get<boolean>('autoSave', false);
 
-        return { model, endpoint };
+        return { model, endpoint, autoSave };
 
     }
 
@@ -20,10 +21,19 @@ export default class GlyphConfig {
 
     }
 
+    public toggleAutoSave = async () => {
+
+        const config = vscode.workspace.getConfiguration('glyph');
+        const autoSave = config.get<boolean>('autoSave', false);
+        await config.update('autoSave', !autoSave, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`Auto Save after generation has been turned ${autoSave ? "On" : "Off"}`);
+
+    }
+
     public updateEndpoint = async (newEndpoint: string) => {
 
         const config = vscode.workspace.getConfiguration('glyph');
-        await config.update('endpoint', newEndpoint, vscode.ConfigurationTarget.Global);
+        await config.update('base_url', newEndpoint, vscode.ConfigurationTarget.Global);
         vscode.window.showInformationMessage(`Endpoint updated to ${newEndpoint}`);
 
     }
