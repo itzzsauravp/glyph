@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import GlyphApp from './core/app';
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	const glyphApp = new GlyphApp(context);
-	glyphApp.initialize().catch(e => console.error(e))
+	await glyphApp.initialize();
 }
 
 export function deactivate() { }
