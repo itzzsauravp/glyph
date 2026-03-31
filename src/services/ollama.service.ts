@@ -8,8 +8,8 @@ export default class OllamaService extends LLMService {
     }
 
     private extractCode(text: string): string {
-        const match = text.match(/```(?:\w+)?\n([\s\S]*?)```/);
-        return match ? match[1].trim() : text;
+        const match = text.match(/```[a-zA-Z]*\s*\n?([\s\S]*?)```/);
+        return match ? match[1].trim() : text.trim();
     }
 
     private extractConfig() {
@@ -66,8 +66,7 @@ export default class OllamaService extends LLMService {
                 prompt: `Code to document:\n${code}`,
                 stream: false,
                 options: {
-                    temperature: 0.1,
-                    stop: ["function", "class", "def ", "public "]
+                    temperature: 0.1
                 }
             })
         });
