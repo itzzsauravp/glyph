@@ -78,4 +78,7 @@ export default class GenerateCode extends BaseCommand {
 3. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and type **Glyph**.
 4. Select `Glyph: Generate Code` or `Glyph: Generate Docs`.
 
+## ⚠️ Disclaimer
+**Glyph** is under active development and has not yet reached a stable version 1.0 release. Updates may introduce breaking changes to your configuration or workflow.
+
 > Less is more. Happy coding!
