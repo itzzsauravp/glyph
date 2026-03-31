@@ -4,7 +4,7 @@
   "displayName": "Glyph: Micro AI Helper",
   "publisher": "sauravparajulee",
   "description": "A simple AI helper tool to analyze, code and document for you using Ollama.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
