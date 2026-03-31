@@ -1,21 +1,30 @@
 {
   "name": "glyph",
-  "displayName": "glyph",
-  "description": "A simple AI helper tool to analyze, code and document for you.",
+  "license": "MIT",
+  "displayName": "Glyph: Micro AI Helper",
+  "publisher": "sauravparajulee", 
+  "description": "A simple AI helper tool to analyze, code and document for you using Ollama.",
   "version": "0.0.1",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itzzsauravp/glyph"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Other"
+  ],
   "engines": {
     "vscode": "^1.110.0"
   },
-  "categories": [
-    "Other"
-  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "glyph.test",
-        "title": "Glyph start(test)"
+        "title": "Glyph: Start (Test)"
       },
       {
         "command": "glyph.code",
