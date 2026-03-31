@@ -88,5 +88,33 @@ export default class EditorService {
         }
     }
 
+    async findFunctionRange(editor: vscode.TextEditor): Promise<vscode.Range | undefined> {
+        const selection = editor.selection;
+
+        const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+            'vscode.executeDocumentSymbolProvider',
+            editor.document.uri
+        );
+
+        if (!symbols) return undefined;
+
+        const findTarget = (syms: vscode.DocumentSymbol[]): vscode.DocumentSymbol | undefined => {
+            for (const sym of syms) {
+                if (sym.range.contains(selection.start)) {
+                    if (sym.kind === vscode.SymbolKind.Function || sym.kind === vscode.SymbolKind.Method) {
+                        return sym;
+                    }
+                    if (sym.children.length > 0) {
+                        const child = findTarget(sym.children);
+                        if (child) return child;
+                    }
+                }
+            }
+            return undefined;
+        };
+
+        const target = findTarget(symbols);
+        return target?.range;
+    }
 
 }

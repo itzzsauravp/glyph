@@ -22,24 +22,41 @@ export default class GenerateCode extends BaseCommand {
         if (!editor) return;
 
         const savedUri = editor.document.uri;
-        const savedRange = editor.selection;
+        let savedRange: vscode.Range = editor.selection;
 
         const prompt = await this.editorService.showPromptInput();
         if (!prompt) return;
 
-        let codeContext: string;
-        const selectedText = this.editorUI.getSelectedText(editor);
+        if (savedRange.isSingleLine) {
+            const funcRange = await this.editorService.findFunctionRange(editor);
+            if (funcRange) {
+                savedRange = funcRange;
+            }
+        }
 
-        if (selectedText) {
-            codeContext = selectedText;
-        } else {
+        let codeContext = editor.document.getText(savedRange);
+
+        if (!codeContext) {
             codeContext = await this.editorService.readFileAsText(editor.document.uri);
+            savedRange = this.editorUI.getFullFileRange(editor);
         }
 
         try {
-            this.editorUI.showLoadingGhostText(editor, "Generating");
+            const tempEdit = new vscode.WorkspaceEdit();
+            tempEdit.insert(savedUri, savedRange.start, "\n");
+            await vscode.workspace.applyEdit(tempEdit);
+
+            this.editorUI.showLoadingGhostText(editor, "Generating", savedRange.start);
 
             const resultFromLLM = await this.ollamaService.generateCode(prompt as string, codeContext);
+
+            const cleanupEdit = new vscode.WorkspaceEdit();
+            const tempNewlineRange = new vscode.Range(
+                savedRange.start,
+                new vscode.Position(savedRange.start.line + 1, 0)
+            );
+            cleanupEdit.delete(savedUri, tempNewlineRange);
+            await vscode.workspace.applyEdit(cleanupEdit);
 
             await this.editorService.replaceAndFormat(savedUri, savedRange, resultFromLLM);
 
