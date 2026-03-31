@@ -12,7 +12,7 @@ export default class OllamaHealth {
     }
 
     public async preflight() {
-        const ollamaInstalled = this.isReachable();
+        const ollamaInstalled = await this.isReachable();
         if (!ollamaInstalled) {
             vscode.window.showErrorMessage("Ollama service not reachable. Please make sure installed and running");
             console.error("Ollama not installed");
