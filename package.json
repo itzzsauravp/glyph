@@ -2,18 +2,25 @@
   "name": "glyph",
   "license": "MIT",
   "displayName": "Glyph: Micro AI Helper",
-  "publisher": "sauravparajulee", 
+  "publisher": "sauravparajulee",
   "description": "A simple AI helper tool to analyze, code and document for you using Ollama.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/itzzsauravp/glyph"
   },
   "categories": [
-    "AI",
     "Programming Languages",
-    "Other"
+    "Machine Learning",
+    "Snippets"
+  ],
+  "keywords": [
+    "ollama",
+    "local ai",
+    "documentation",
+    "privacy",
+    "refactor"
   ],
   "engines": {
     "vscode": "^1.110.0"
@@ -51,6 +58,11 @@
           "type": "string",
           "default": "http://localhost:11434",
           "description": "The URL of your Ollama instance."
+        },
+        "glyph.autoSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically save the file after code/docs generation completes."
         }
       }
     }
