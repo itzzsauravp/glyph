@@ -52,7 +52,12 @@
         "glyph.modelName": {
           "type": "string",
           "default": "",
-          "description": "The name of the Ollama model to use for generation."
+          "description": "The name of the Ollama model to use for code/docs generation."
+        },
+        "glyph.embeddingModelName": {
+          "type": "string",
+          "default": "",
+          "description": "The name of the Ollama model to use for vector generation."
         },
         "glyph.base_url": {
           "type": "string",
