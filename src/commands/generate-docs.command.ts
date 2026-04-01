@@ -5,6 +5,7 @@ import OllamaService from "../services/ollama.service";
 import EditorUIService from "../services/editor-ui.service";
 import StatusBarService, { StatusState } from "../services/status-bar.service";
 import RangeTrackerService from "../services/range-tracker.service";
+import RepositoryIndexerService from "../services/repo-indexer.service";
 
 export default class GenerateDocs extends BaseCommand {
 
@@ -13,9 +14,10 @@ export default class GenerateDocs extends BaseCommand {
         private readonly ollamaService: OllamaService,
         private readonly editorUI: EditorUIService,
         private readonly statusBar: StatusBarService,
-        private readonly rangeTracker: RangeTrackerService
+        private readonly rangeTracker: RangeTrackerService,
+        private readonly repositoryIndexer: RepositoryIndexerService,
     ) {
-        super()
+        super();
     }
 
     public id: string = "glyph.docs";
@@ -47,6 +49,9 @@ export default class GenerateDocs extends BaseCommand {
         try {
             this.statusBar.setState(StatusState.GeneratingDocs);
 
+            // Index the active file so that context vectors are up-to-date.
+            await this.repositoryIndexer.indexFile(savedUri);
+
             const startPos = (this.rangeTracker.getRange(trackerId) || savedRange).start;
 
             const tempEdit = new vscode.WorkspaceEdit();
@@ -57,7 +62,12 @@ export default class GenerateDocs extends BaseCommand {
 
             this.editorUI.showLoadingGhostText(editor, "Generating", startPos);
 
-            const resultFromLLM = await this.ollamaService.generateDocs(codeContext, editor.document.languageId);
+            // Use context-aware doc generation.
+            const resultFromLLM = await this.ollamaService.generateDocsWithContext(
+                codeContext,
+                editor.document.languageId,
+                savedUri,
+            );
 
             const tempRange = this.rangeTracker.getRange(tempTrackerId);
             if (tempRange) {

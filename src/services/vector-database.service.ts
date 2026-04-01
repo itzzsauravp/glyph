@@ -16,23 +16,13 @@ export default class VectorDatabaseService {
     /**
      * Static Factory Method — connects to the LanceDB database.
      *
-     * DEV MODE: Stores the `.lance` folder in the workspace root so you can
-     *           inspect files easily during development.
-     *
-     * PRODUCTION (commented out): Uses context.globalStorageUri which is the
-     *           proper VS Code way — one global DB shared across all workspaces.
      */
     public static async connectGlobalDatabase(): Promise<VectorDatabaseService> {
 
-        // ============================================================
-        // PRODUCTION — uncomment these lines and delete the DEV block
-        // ============================================================
+        // i dont think i will ever use global config, let it just be in the pwd for the current repo for now.
         // await vscode.workspace.fs.createDirectory(context.globalStorageUri);
         // const databasePath = context.globalStorageUri.fsPath;
 
-        // ============================================================
-        // DEV MODE — store in workspace root under .glyph/index for easy inspection
-        // ============================================================
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
             throw new Error("[VectorDatabaseService] No workspace folder is open. Cannot create .glyph database.");
@@ -58,8 +48,9 @@ export default class VectorDatabaseService {
      * The table name is sanitised to remove non-alphanumeric characters.
      * A seed row is inserted on creation so LanceDB can infer the schema.
      */
-    public async initializeWorkspaceTable(workspaceName: string): Promise<lancedb.Table> {
-        const sanitizedTableName = this.sanitizeTableName(workspaceName);
+    public async initializeWorkspaceTable(): Promise<lancedb.Table> {
+        // kind of unnecessary to sanitize but just for sanity check. Get it ?? haha
+        const sanitizedTableName = this.sanitizeTableName("embedding");
         const tableAlreadyExists = await this.hasTable(sanitizedTableName);
 
         if (tableAlreadyExists) {
