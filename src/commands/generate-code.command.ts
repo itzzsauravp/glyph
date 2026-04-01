@@ -61,7 +61,7 @@ export default class GenerateCode extends BaseCommand {
 
             this.editorUI.showLoadingGhostText(editor, "Generating", startPos);
 
-            const resultFromLLM = await this.ollamaService.generateCode(prompt as string, codeContext);
+            const resultFromLLM = await this.ollamaService.generateCode(prompt as string, codeContext, editor.document.languageId);
 
             const tempRange = this.rangeTracker.getRange(tempTrackerId);
             if (tempRange) {

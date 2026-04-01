@@ -16,11 +16,11 @@ export default class OllamaService extends LLMService {
         return this.glyphConfig.getExtensionConfig()
     }
 
-    public async generateCode(prompt: string, code: string): Promise<string> {
+    public async generateCode(prompt: string, code: string, languageId: string): Promise<string> {
         const { endpoint, model } = this.extractConfig()
         const systemPrompt = `
         You are a specialized programming assistant. 
-        Your task is to modify the provided code according to the instructions.
+        Your task is to modify the provided code in ${languageId} according to the instructions.
         RULES:
         1. Return ONLY the functional code.
         2. Do NOT include markdown code blocks (no \`\`\` or \`\`\`typescript).
