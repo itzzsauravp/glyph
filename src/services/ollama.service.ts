@@ -1,4 +1,5 @@
 import GlyphConfig from "../config/glyph.config";
+import { OllamaEmbedResponse, OllamaGenerateResponse } from "../types/ollama.types";
 import LLMService from "./base-llm.service";
 
 export default class OllamaService extends LLMService {
@@ -14,6 +15,35 @@ export default class OllamaService extends LLMService {
 
     private extractConfig() {
         return this.glyphConfig.getExtensionConfig()
+    }
+
+    public async generateEmbeddings(content: string | Array<string>) {
+        const { endpoint, embeddingModel } = this.extractConfig();
+        
+        if (!embeddingModel) {
+            throw new Error("No embedding model configured in Glyph settings.");
+        }
+
+        const response = await fetch(`${endpoint}/api/embed`, {
+            method: 'POST',
+            body: JSON.stringify({
+                model: embeddingModel,
+                input: content
+            })
+        });
+        
+        const data = await response.json() as any;
+        
+        if (data.error) {
+            throw new Error(`Ollama API returned an error: ${data.error}`);
+        }
+        
+        if (!data.embeddings || !Array.isArray(data.embeddings) || data.embeddings.length === 0) {
+            throw new Error(`Ollama API did not return embeddings. Response: ${JSON.stringify(data)}`);
+        }
+        
+        const vector = data.embeddings[0];
+        return vector;
     }
 
     public async generateCode(prompt: string, code: string, languageId: string): Promise<string> {
@@ -37,7 +67,7 @@ export default class OllamaService extends LLMService {
                 stream: false
             })
         });
-        const data = await response.json() as any;
+        const data = await response.json() as OllamaGenerateResponse;
         return this.extractCode(data.response);
     }
 
@@ -70,7 +100,7 @@ export default class OllamaService extends LLMService {
             })
         });
 
-        const data = await response.json() as any;
+        const data = await response.json() as OllamaGenerateResponse;
         return this.extractCode(data.response);
     }
 

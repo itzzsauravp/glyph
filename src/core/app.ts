@@ -11,6 +11,8 @@ import GenerateDocs from "../commands/generate-docs.command";
 import ModelSelect from "../commands/model-select.command";
 import StatusBarService from "../services/status-bar.service";
 import RangeTrackerService from "../services/range-tracker.service";
+import VectorDatabaseService from "../services/vector-database.service";
+import RepositoryIndexerService from "../services/repo-indexer.service";
 
 export default class GlyphApp {
 
@@ -22,17 +24,44 @@ export default class GlyphApp {
     private editorUI!: EditorUIService;
     private statusBar!: StatusBarService;
     private rangeTracker!: RangeTrackerService;
-    private readonly cmdMngr: CommandManager;
+    private vectorDatabaseService!: VectorDatabaseService;
+    private repositoryIndexer!: RepositoryIndexerService;
+    private readonly commandManager: CommandManager;
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
-        this.cmdMngr = new CommandManager(context);
+        this.commandManager = new CommandManager(context);
+    }
+
+    /**
+     * Connects to the global LanceDB database, initialises the workspace table,
+     * and runs a mock indexing test to verify the pipeline works end-to-end.
+     */
+    private async initializeVectorSearch(): Promise<void> {
+        try {
+
+            this.vectorDatabaseService = await VectorDatabaseService.connectGlobalDatabase();
+
+            const activeWorkspaceName = vscode.workspace.name || "default_workspace";
+
+            const workspaceTable = await this.vectorDatabaseService.initializeWorkspaceTable(activeWorkspaceName);
+
+            this.repositoryIndexer = new RepositoryIndexerService(workspaceTable, this.ollamaService);
+
+        } catch (error) {
+            console.error("[GlyphApp]:  initializeVectorSearch() FAILED:", error);
+        }
     }
 
     public async initialize() {
+        // Services (including OllamaService) must be registered first so they
+        // are available to be injected into RepositoryIndexerService.
         this.registerServices();
 
+        await this.initializeVectorSearch();
+
         this.registerCommands();
+
 
         const preflightPassed = await this.ollamaHealth.preflight();
         this.statusBar.setHealthy(preflightPassed);
@@ -76,10 +105,10 @@ export default class GlyphApp {
     }
 
     private registerCommands() {
-        this.cmdMngr.register(new TestCommand());
-        this.cmdMngr.register(new GenerateCode(this.editorService, this.ollamaService, this.editorUI, this.statusBar, this.rangeTracker));
-        this.cmdMngr.register(new GenerateDocs(this.editorService, this.ollamaService, this.editorUI, this.statusBar, this.rangeTracker));
-        this.cmdMngr.register(new ModelSelect(this.glyphConfig, this.ollamaHealth));
+        this.commandManager.register(new TestCommand(this.repositoryIndexer));
+        this.commandManager.register(new GenerateCode(this.editorService, this.ollamaService, this.editorUI, this.statusBar, this.rangeTracker));
+        this.commandManager.register(new GenerateDocs(this.editorService, this.ollamaService, this.editorUI, this.statusBar, this.rangeTracker));
+        this.commandManager.register(new ModelSelect(this.glyphConfig, this.ollamaHealth));
     }
 
 }
