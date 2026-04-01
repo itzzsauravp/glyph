@@ -31,13 +31,13 @@ export default class VectorDatabaseService {
         // const databasePath = context.globalStorageUri.fsPath;
 
         // ============================================================
-        // DEV MODE — store in workspace root under .lance/ for easy inspection
+        // DEV MODE — store in workspace root under .glyph/index for easy inspection
         // ============================================================
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
-            throw new Error("[VectorDatabaseService] No workspace folder is open. Cannot create .lance database.");
+            throw new Error("[VectorDatabaseService] No workspace folder is open. Cannot create .glyph database.");
         }
-        const databasePath = path.join(workspaceFolders[0].uri.fsPath, ".lance");
+        const databasePath = path.join(workspaceFolders[0].uri.fsPath, ".glyph", "index");
 
         const databaseConnection = await lancedb.connect(databasePath);
 
