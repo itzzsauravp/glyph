@@ -1,6 +1,6 @@
-import * as vscode from "vscode";
-import * as lancedb from "@lancedb/lancedb";
-import OllamaService from "./ollama.service";
+import type * as lancedb from '@lancedb/lancedb';
+import * as vscode from 'vscode';
+import type OllamaService from './ollama.service';
 
 /**
  * Indexes document symbols (functions, classes, types, etc.) from a file
@@ -10,11 +10,10 @@ import OllamaService from "./ollama.service";
  * are deleted to prevent stale duplicates.
  */
 export default class RepositoryIndexerService {
-
     constructor(
         private readonly workspaceTable: lancedb.Table,
         private readonly ollamaService: OllamaService,
-    ) { }
+    ) {}
 
     /**
      * Removes all existing vector rows for the given file path so a
@@ -25,7 +24,7 @@ export default class RepositoryIndexerService {
             await this.workspaceTable.delete(`path = '${filePath}'`);
         } catch (error) {
             // Table may be empty or the filter may match nothing — both are fine.
-            console.warn("[RepoIndexer] clearFileVectors — nothing to delete or error:", error);
+            console.warn('[RepoIndexer] clearFileVectors — nothing to delete or error:', error);
         }
     }
 
@@ -40,7 +39,7 @@ export default class RepositoryIndexerService {
     public async indexFile(uri: vscode.Uri): Promise<void> {
         try {
             const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
-                "vscode.executeDocumentSymbolProvider",
+                'vscode.executeDocumentSymbolProvider',
                 uri,
             );
 
@@ -53,31 +52,32 @@ export default class RepositoryIndexerService {
 
             const document = await vscode.workspace.openTextDocument(uri);
 
-            const promiseRows = symbols.map(async (s) => {
+            const rows = [];
+            for (const s of symbols) {
                 const text = document.getText(s.range);
                 if (!text) {
-                    console.warn(`[RepoIndexer] Skipping symbol "${s.name}" — no text could be extracted.`);
-                    return null;
+                    console.warn(
+                        `[RepoIndexer] Skipping symbol "${s.name}" — no text could be extracted.`,
+                    );
+                    continue;
                 }
 
                 const vector = await this.ollamaService.generateEmbeddings(text);
 
-                return {
+                rows.push({
                     text,
                     symbolName: s.name,
                     text_type: vscode.SymbolKind[s.kind].toLowerCase(),
                     path: uri.fsPath,
                     vector: new Float32Array(vector),
-                };
-            });
-
-            const rows = (await Promise.all(promiseRows)).filter((row) => row !== null);
+                });
+            }
 
             if (rows.length > 0) {
                 await this.workspaceTable.add(rows);
             }
         } catch (error) {
-            console.error("[RepoIndexer] Error indexing file:", error);
+            console.error('[RepoIndexer] Error indexing file:', error);
         }
     }
 }

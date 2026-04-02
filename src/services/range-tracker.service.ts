@@ -11,7 +11,7 @@ export default class RangeTrackerService {
 
     constructor(context: vscode.ExtensionContext) {
         context.subscriptions.push(
-            vscode.workspace.onDidChangeTextDocument(event => this.handleDocumentChange(event))
+            vscode.workspace.onDidChangeTextDocument((event) => this.handleDocumentChange(event)),
         );
     }
 
@@ -33,8 +33,10 @@ export default class RangeTrackerService {
         const uri = event.document.uri.toString();
         const changes = event.contentChanges;
 
-        for (const [id, active] of this.activeRanges) {
-            if (active.uri !== uri) continue;
+        for (const [_id, active] of this.activeRanges) {
+            if (active.uri !== uri) {
+                continue;
+            }
 
             let currentRange = active.range;
 
@@ -44,15 +46,26 @@ export default class RangeTrackerService {
                     const charDelta = this.calculateCharDelta(change, currentRange.start);
 
                     currentRange = new vscode.Range(
-                        new vscode.Position(currentRange.start.line + lineDelta, currentRange.start.character + charDelta),
-                        new vscode.Position(currentRange.end.line + lineDelta, currentRange.end.character + charDelta)
+                        new vscode.Position(
+                            currentRange.start.line + lineDelta,
+                            currentRange.start.character + charDelta,
+                        ),
+                        new vscode.Position(
+                            currentRange.end.line + lineDelta,
+                            currentRange.end.character + charDelta,
+                        ),
                     );
-                }
-                else if (change.range.start.isAfterOrEqual(currentRange.start) && change.range.end.isBeforeOrEqual(currentRange.end)) {
+                } else if (
+                    change.range.start.isAfterOrEqual(currentRange.start) &&
+                    change.range.end.isBeforeOrEqual(currentRange.end)
+                ) {
                     const lineDelta = this.calculateLineDelta(change);
                     currentRange = new vscode.Range(
                         currentRange.start,
-                        new vscode.Position(currentRange.end.line + lineDelta, currentRange.end.character)
+                        new vscode.Position(
+                            currentRange.end.line + lineDelta,
+                            currentRange.end.character,
+                        ),
                     );
                 }
             }
@@ -67,11 +80,18 @@ export default class RangeTrackerService {
         return linesAdded - linesRemoved;
     }
 
-    private calculateCharDelta(change: vscode.TextDocumentContentChangeEvent, rangeStart: vscode.Position): number {
-        if (change.range.end.line !== rangeStart.line) return 0;
+    private calculateCharDelta(
+        change: vscode.TextDocumentContentChangeEvent,
+        rangeStart: vscode.Position,
+    ): number {
+        if (change.range.end.line !== rangeStart.line) {
+            return 0;
+        }
 
         const linesAdded = change.text.split('\n').length - 1;
-        if (linesAdded > 0) return 0;
+        if (linesAdded > 0) {
+            return 0;
+        }
 
         const charsAdded = change.text.length;
         const charsRemoved = change.range.end.character - change.range.start.character;

@@ -1,9 +1,9 @@
-import * as vscode from "vscode";
-import * as lancedb from "@lancedb/lancedb";
+import type * as lancedb from '@lancedb/lancedb';
+import type * as vscode from 'vscode';
 
-import GlyphConfig from "../config/glyph.config";
-import { OllamaGenerateResponse } from "../types/ollama.types";
-import LLMService from "./base-llm.service";
+import type GlyphConfig from '../config/glyph.config';
+import type { OllamaGenerateResponse } from '../types/ollama.types';
+import LLMService from './base-llm.service';
 
 /**
  * Wraps Ollama's HTTP API for code generation, documentation, and embeddings.
@@ -12,7 +12,6 @@ import LLMService from "./base-llm.service";
  * perform context-aware vector searches without depending on VectorDatabaseService.
  */
 export default class OllamaService extends LLMService {
-
     constructor(
         private readonly glyphConfig: GlyphConfig,
         private readonly workspaceTable: lancedb.Table,
@@ -37,9 +36,9 @@ export default class OllamaService extends LLMService {
         ];
 
         return code
-            .split("\n")
-            .filter(line => !importPatterns.some(pattern => pattern.test(line)))
-            .join("\n")
+            .split('\n')
+            .filter((line) => !importPatterns.some((pattern) => pattern.test(line)))
+            .join('\n')
             .trim();
     }
 
@@ -51,7 +50,11 @@ export default class OllamaService extends LLMService {
      * Queries the workspace table for the top-K vector matches scoped to a
      * single file and returns them as a formatted context block.
      */
-    private async retrieveFileContext(queryText: string, documentUri: vscode.Uri, topK: number = 5): Promise<string> {
+    private async retrieveFileContext(
+        queryText: string,
+        documentUri: vscode.Uri,
+        topK: number = 5,
+    ): Promise<string> {
         try {
             const queryVector = await this.generateEmbeddings(queryText);
 
@@ -62,18 +65,24 @@ export default class OllamaService extends LLMService {
                 .toArray();
 
             if (!results || results.length === 0) {
-                return "";
+                return '';
             }
 
             const contextBlocks = results
-                .filter((r: any) => r.text !== "seed_marker")
-                .map((r: any, i: number) => `--- [ALREADY DEFINED IN FILE] Symbol: ${r.symbolName} (${r.text_type}) ---\n${r.text}`)
-                .join("\n\n");
+                .filter((r: any) => r.text !== 'seed_marker')
+                .map(
+                    (r: any, _i: number) =>
+                        `--- [ALREADY DEFINED IN FILE] Symbol: ${r.symbolName} (${r.text_type}) ---\n${r.text}`,
+                )
+                .join('\n\n');
 
             return contextBlocks;
         } catch (error) {
-            console.warn("[OllamaService] Context retrieval failed, proceeding without context:", error);
-            return "";
+            console.warn(
+                '[OllamaService] Context retrieval failed, proceeding without context:',
+                error,
+            );
+            return '';
         }
     }
 
@@ -81,11 +90,11 @@ export default class OllamaService extends LLMService {
         const { endpoint, embeddingModel } = this.extractConfig();
 
         if (!embeddingModel) {
-            throw new Error("No embedding model configured in Glyph settings.");
+            throw new Error('No embedding model configured in Glyph settings.');
         }
 
         const response = await fetch(`${endpoint}/api/embed`, {
-            method: "POST",
+            method: 'POST',
             body: JSON.stringify({
                 model: embeddingModel,
                 input: content,
@@ -99,7 +108,9 @@ export default class OllamaService extends LLMService {
         }
 
         if (!data.embeddings || !Array.isArray(data.embeddings) || data.embeddings.length === 0) {
-            throw new Error(`Ollama API did not return embeddings. Response: ${JSON.stringify(data)}`);
+            throw new Error(
+                `Ollama API did not return embeddings. Response: ${JSON.stringify(data)}`,
+            );
         }
 
         return data.embeddings[0];
@@ -122,7 +133,7 @@ RULES:
 `;
 
         const response = await fetch(`${endpoint}/api/generate`, {
-            method: "POST",
+            method: 'POST',
             body: JSON.stringify({
                 system: systemPrompt,
                 model,
@@ -152,7 +163,7 @@ RULES:
 `;
 
         const response = await fetch(`${endpoint}/api/generate`, {
-            method: "POST",
+            method: 'POST',
             body: JSON.stringify({
                 model,
                 system: systemPrompt,
@@ -186,7 +197,7 @@ RULES:
 
         const contextSection = contextBlock
             ? `\nThe following symbols ALREADY EXIST in the same file. Do NOT re-define them. Just CALL them if needed:\n${contextBlock}`
-            : "";
+            : '';
 
         const systemPrompt = `
 You are a specialized programming assistant.
@@ -204,7 +215,7 @@ ${contextSection}
 `;
 
         const response = await fetch(`${endpoint}/api/generate`, {
-            method: "POST",
+            method: 'POST',
             body: JSON.stringify({
                 system: systemPrompt,
                 model,
@@ -235,7 +246,7 @@ ${contextSection}
 
         const contextSection = contextBlock
             ? `\n\nRELEVANT CONTEXT FROM THE CURRENT FILE (use as reference for accurate documentation):\n${contextBlock}`
-            : "";
+            : '';
 
         const systemPrompt = `
 You are an expert technical writer and developer.
@@ -254,7 +265,7 @@ ${contextSection}
 `;
 
         const response = await fetch(`${endpoint}/api/generate`, {
-            method: "POST",
+            method: 'POST',
             body: JSON.stringify({
                 model,
                 system: systemPrompt,

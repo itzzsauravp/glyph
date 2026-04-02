@@ -1,6 +1,4 @@
 export default abstract class BaseCommand {
-
-    public readonly abstract id: string
-    public abstract action: () => void
-
+    public abstract readonly id: string;
+    public abstract action: () => void;
 }

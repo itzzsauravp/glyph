@@ -1,20 +1,18 @@
-import * as vscode from "vscode";
-
-import GlyphConfig from "../config/glyph.config";
-import OllamaHealth from "../services/ollama-health.service";
-import OllamaService from "../services/ollama.service";
-import VectorDatabaseService from "../services/vector-database.service";
-import RepositoryIndexerService from "../services/repo-indexer.service";
-import EditorService from "../services/editor.service";
-import EditorUIService from "../services/editor-ui.service";
-import StatusBarService from "../services/status-bar.service";
-import RangeTrackerService from "../services/range-tracker.service";
-import CommandManager from "../services/command-manager.service";
-
-import TestCommand from "../commands/test.command";
-import GenerateCode from "../commands/generate-code.command";
-import GenerateDocs from "../commands/generate-docs.command";
-import ModelSelect from "../commands/model-select.command";
+import * as vscode from 'vscode';
+import GenerateCode from '../commands/generate-code.command';
+import GenerateDocs from '../commands/generate-docs.command';
+import ModelSelect from '../commands/model-select.command';
+import TestCommand from '../commands/test.command';
+import GlyphConfig from '../config/glyph.config';
+import CommandManager from '../services/command-manager.service';
+import EditorService from '../services/editor.service';
+import EditorUIService from '../services/editor-ui.service';
+import OllamaService from '../services/ollama.service';
+import OllamaHealth from '../services/ollama-health.service';
+import RangeTrackerService from '../services/range-tracker.service';
+import RepositoryIndexerService from '../services/repo-indexer.service';
+import StatusBarService from '../services/status-bar.service';
+import VectorDatabaseService from '../services/vector-database.service';
 
 /**
  * Root application class — owns every service and command.
@@ -25,7 +23,6 @@ import ModelSelect from "../commands/model-select.command";
  *   Config → Health → VectorDB → OllamaService → RepoIndexer → UI → Commands
  */
 export default class GlyphApp {
-
     private readonly context: vscode.ExtensionContext;
     private readonly commandManager: CommandManager;
 
@@ -45,7 +42,6 @@ export default class GlyphApp {
     }
 
     public async initialize(): Promise<void> {
-
         this.glyphConfig = new GlyphConfig();
         this.ollamaHealth = new OllamaHealth(this.glyphConfig);
 
@@ -70,7 +66,7 @@ export default class GlyphApp {
         this.statusBar.setHealthy(preflightPassed);
 
         if (!preflightPassed) {
-            vscode.window.showErrorMessage("Preflight failed — please check the logs for details.");
+            vscode.window.showErrorMessage('Preflight failed — please check the logs for details.');
             return;
         }
 
@@ -79,9 +75,7 @@ export default class GlyphApp {
     }
 
     private registerCommands(): void {
-        this.commandManager.register(
-            new TestCommand(this.repositoryIndexer),
-        );
+        this.commandManager.register(new TestCommand(this.repositoryIndexer));
         this.commandManager.register(
             new GenerateCode(
                 this.editorService,
@@ -102,9 +96,7 @@ export default class GlyphApp {
                 this.repositoryIndexer,
             ),
         );
-        this.commandManager.register(
-            new ModelSelect(this.glyphConfig, this.ollamaHealth),
-        );
+        this.commandManager.register(new ModelSelect(this.glyphConfig, this.ollamaHealth));
     }
 
     private startHealthPolling(): void {
@@ -116,7 +108,7 @@ export default class GlyphApp {
 
     private registerConfigListener(): void {
         vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration("glyph.modelName")) {
+            if (e.affectsConfiguration('glyph.modelName')) {
                 const { model } = this.glyphConfig.getExtensionConfig();
                 this.statusBar.setModel(model);
             }

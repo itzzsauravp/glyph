@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 
 export enum StatusState {
-    Idle = "Idle",
-    GeneratingCode = "Generating Code",
-    GeneratingDocs = "Generating Docs",
-    Offline = "Offline"
+    Idle = 'Idle',
+    GeneratingCode = 'Generating Code',
+    GeneratingDocs = 'Generating Docs',
+    Offline = 'Offline',
 }
 
 export default class StatusBarService {
@@ -16,7 +16,7 @@ export default class StatusBarService {
     constructor(context: vscode.ExtensionContext) {
         this.statusBarItem = vscode.window.createStatusBarItem(
             vscode.StatusBarAlignment.Right,
-            100
+            100,
         );
         this.statusBarItem.command = 'glyph.model_select';
         context.subscriptions.push(this.statusBarItem);
@@ -45,18 +45,21 @@ export default class StatusBarService {
     }
 
     private update() {
-        let icon = "$(check)";
+        let icon = '$(check)';
         let text = `Glyph: ${this.currentModel || 'No Model'}`;
-        let tooltip = "Ollama is healthy";
+        let tooltip = 'Ollama is healthy';
 
         if (!this.isHealthy) {
-            icon = "$(circle-slash)";
-            text = "Glyph: Offline";
-            tooltip = "Ollama unreachable";
-        } else if (this.currentState === StatusState.GeneratingCode || this.currentState === StatusState.GeneratingDocs) {
-            icon = "$(sync~spin)";
+            icon = '$(circle-slash)';
+            text = 'Glyph: Offline';
+            tooltip = 'Ollama unreachable';
+        } else if (
+            this.currentState === StatusState.GeneratingCode ||
+            this.currentState === StatusState.GeneratingDocs
+        ) {
+            icon = '$(sync~spin)';
             text = `Glyph: ${this.currentState}...`;
-            tooltip = "AI is generating results";
+            tooltip = 'AI is generating results';
         }
 
         this.statusBarItem.text = `${icon} ${text}`;

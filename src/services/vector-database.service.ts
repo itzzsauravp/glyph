@@ -1,6 +1,6 @@
-import * as vscode from "vscode";
-import * as lancedb from "@lancedb/lancedb";
-import path from "path";
+import path from 'node:path';
+import * as lancedb from '@lancedb/lancedb';
+import * as vscode from 'vscode';
 
 export default class VectorDatabaseService {
     public readonly databaseConnection: lancedb.Connection;
@@ -10,7 +10,7 @@ export default class VectorDatabaseService {
     }
 
     private sanitizeTableName(tableName: string): string {
-        return tableName.replace(/[^a-zA-Z0-9]/g, "_");
+        return tableName.replace(/[^a-zA-Z0-9]/g, '_');
     }
 
     /**
@@ -18,16 +18,17 @@ export default class VectorDatabaseService {
      *
      */
     public static async connectGlobalDatabase(): Promise<VectorDatabaseService> {
-
         // i dont think i will ever use global config, let it just be in the pwd for the current repo for now.
         // await vscode.workspace.fs.createDirectory(context.globalStorageUri);
         // const databasePath = context.globalStorageUri.fsPath;
 
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
-            throw new Error("[VectorDatabaseService] No workspace folder is open. Cannot create .glyph database.");
+            throw new Error(
+                '[VectorDatabaseService] No workspace folder is open. Cannot create .glyph database.',
+            );
         }
-        const databasePath = path.join(workspaceFolders[0].uri.fsPath, ".glyph", "index");
+        const databasePath = path.join(workspaceFolders[0].uri.fsPath, '.glyph', 'index');
 
         const databaseConnection = await lancedb.connect(databasePath);
 
@@ -50,7 +51,7 @@ export default class VectorDatabaseService {
      */
     public async initializeWorkspaceTable(): Promise<lancedb.Table> {
         // kind of unnecessary to sanitize but just for sanity check. Get it ?? haha
-        const sanitizedTableName = this.sanitizeTableName("embedding");
+        const sanitizedTableName = this.sanitizeTableName('embedding');
         const tableAlreadyExists = await this.hasTable(sanitizedTableName);
 
         if (tableAlreadyExists) {
@@ -60,11 +61,11 @@ export default class VectorDatabaseService {
         const seedRow = [
             {
                 vector: new Float32Array(768).fill(0),
-                text: "seed_marker",
-                text_type: "word",
-                path: "root",
-                symbolName: "init",
-                fileHash: "none",
+                text: 'seed_marker',
+                text_type: 'word',
+                path: 'root',
+                symbolName: 'init',
+                fileHash: 'none',
             },
         ];
 

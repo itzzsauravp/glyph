@@ -1,13 +1,12 @@
 import * as vscode from 'vscode';
-import EditorUIService from './editor-ui.service';
-import GlyphConfig from '../config/glyph.config';
+import type GlyphConfig from '../config/glyph.config';
+import type EditorUIService from './editor-ui.service';
 
 export default class EditorService {
-
     constructor(
         private readonly editorUI: EditorUIService,
         private readonly glyphConfig: GlyphConfig,
-    ) { }
+    ) {}
 
     /**
      * Reads the content of a file given its URI.
@@ -18,27 +17,40 @@ export default class EditorService {
             return new TextDecoder().decode(rawData);
         } catch (error) {
             console.error(`Error reading file: ${error}`);
-            return "";
+            return '';
         }
-    }
+    };
 
     /**
-     * Shows an input box to get a prompt from the user.
+     * Shows a QuickInput overlay to get a prompt from the user.
+     * This opens at the top-center of VS Code.
      */
     public showPromptInput = async (): Promise<string | undefined> => {
-        const result = await vscode.window.showInputBox({
-            placeHolder: "Explain this code...",
-            prompt: "Enter instructions for the LLM",
-            ignoreFocusOut: true
+        return new Promise<string | undefined>((resolve) => {
+            const input = vscode.window.createInputBox();
+            input.title = 'Glyph AI Prompt';
+            input.placeholder = 'Explain this code...';
+            input.prompt = 'Enter instructions for the LLM. Press Enter to submit.';
+            input.ignoreFocusOut = true;
+
+            input.onDidAccept(() => {
+                const value = input.value.trim();
+                if (!value) {
+                    vscode.window.showErrorMessage('Prompt field cannot be empty');
+                    return;
+                }
+                resolve(value);
+                input.hide();
+            });
+
+            input.onDidHide(() => {
+                resolve(undefined);
+                input.dispose();
+            });
+
+            input.show();
         });
-
-        if (!result) {
-            vscode.window.showErrorMessage("Prompt field cannot be empty");
-            return;
-        }
-
-        return result;
-    }
+    };
 
     /**
      * Silently formats a range in a document without stealing focus or selection.
@@ -47,14 +59,14 @@ export default class EditorService {
         const document = await vscode.workspace.openTextDocument(fileUri);
         const options: vscode.FormattingOptions = {
             tabSize: 4,
-            insertSpaces: true
+            insertSpaces: true,
         };
 
         const edits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
             'vscode.executeFormatRangeProvider',
             document.uri,
             range,
-            options
+            options,
         );
 
         if (edits && edits.length > 0) {
@@ -80,7 +92,7 @@ export default class EditorService {
             const dataLines = data.split('\n').length;
             const formattedRange = new vscode.Range(
                 range.start,
-                new vscode.Position(range.start.line + dataLines, 0)
+                new vscode.Position(range.start.line + dataLines, 0),
             );
             await this.formatRangeSilently(fileUri, formattedRange);
             await this.conditionalSave(fileUri);
@@ -95,16 +107,13 @@ export default class EditorService {
      */
     public async insertAndFormat(fileUri: vscode.Uri, range: vscode.Range, data: string) {
         const edit = new vscode.WorkspaceEdit();
-        edit.insert(fileUri, range.start, data + "\n");
+        edit.insert(fileUri, range.start, `${data}\n`);
 
         const success = await vscode.workspace.applyEdit(edit);
 
         if (success) {
             const docLines = data.split('\n').length;
-            const docRange = new vscode.Range(
-                range.start.line, 0,
-                range.start.line + docLines, 0
-            );
+            const docRange = new vscode.Range(range.start.line, 0, range.start.line + docLines, 0);
             await this.formatRangeSilently(fileUri, docRange);
             await this.conditionalSave(fileUri);
         }
@@ -123,20 +132,27 @@ export default class EditorService {
 
         const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
             'vscode.executeDocumentSymbolProvider',
-            editor.document.uri
+            editor.document.uri,
         );
 
-        if (!symbols) return undefined;
+        if (!symbols) {
+            return undefined;
+        }
 
         const findTarget = (syms: vscode.DocumentSymbol[]): vscode.DocumentSymbol | undefined => {
             for (const sym of syms) {
                 if (sym.range.contains(selection.start)) {
-                    if (sym.kind === vscode.SymbolKind.Function || sym.kind === vscode.SymbolKind.Method) {
+                    if (
+                        sym.kind === vscode.SymbolKind.Function ||
+                        sym.kind === vscode.SymbolKind.Method
+                    ) {
                         return sym;
                     }
                     if (sym.children.length > 0) {
                         const child = findTarget(sym.children);
-                        if (child) return child;
+                        if (child) {
+                            return child;
+                        }
                     }
                 }
             }
@@ -146,5 +162,4 @@ export default class EditorService {
         const target = findTarget(symbols);
         return target?.range;
     }
-
 }
