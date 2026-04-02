@@ -1,6 +1,6 @@
 import type * as lancedb from '@lancedb/lancedb';
 import * as vscode from 'vscode';
-import type OllamaService from './ollama.service';
+import type LocalLLMService from './llm.service';
 
 /**
  * Indexes document symbols (functions, classes, types, etc.) from a file
@@ -12,7 +12,7 @@ import type OllamaService from './ollama.service';
 export default class RepositoryIndexerService {
     constructor(
         private readonly workspaceTable: lancedb.Table,
-        private readonly ollamaService: OllamaService,
+        private readonly llmService: LocalLLMService,
     ) {}
 
     /**
@@ -62,7 +62,7 @@ export default class RepositoryIndexerService {
                     continue;
                 }
 
-                const vector = await this.ollamaService.generateEmbeddings(text);
+                const vector = await this.llmService.generateEmbeddings(text);
 
                 rows.push({
                     text,

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type EditorService from '../services/editor.service';
 import type EditorUIService from '../services/editor-ui.service';
-import type OllamaService from '../services/ollama.service';
+import type LocalLLMService from '../services/llm.service';
 import type RangeTrackerService from '../services/range-tracker.service';
 import type RepositoryIndexerService from '../services/repo-indexer.service';
 import type StatusBarService from '../services/status-bar.service';
@@ -11,7 +11,7 @@ import BaseCommand from './base.command';
 export default class GenerateDocs extends BaseCommand {
     constructor(
         private readonly editorService: EditorService,
-        private readonly ollamaService: OllamaService,
+        private readonly llmService: LocalLLMService,
         private readonly editorUI: EditorUIService,
         private readonly statusBar: StatusBarService,
         private readonly rangeTracker: RangeTrackerService,
@@ -68,7 +68,7 @@ export default class GenerateDocs extends BaseCommand {
             this.editorUI.showLoadingGhostText(editor, 'Generating', startPos);
 
             // Use context-aware doc generation.
-            const resultFromLLM = await this.ollamaService.generateDocsWithContext(
+            const resultFromLLM = await this.llmService.generateDocsWithContext(
                 codeContext,
                 editor.document.languageId,
                 savedUri,
@@ -91,7 +91,7 @@ export default class GenerateDocs extends BaseCommand {
             await this.editorService.insertAndFormat(savedUri, finalRange, resultFromLLM);
         } catch (error) {
             console.error(error);
-            vscode.window.showErrorMessage((error as any).message);
+            vscode.window.showErrorMessage((error as Error).message);
         } finally {
             if (tempTrackerId) {
                 this.rangeTracker.unregister(tempTrackerId);
