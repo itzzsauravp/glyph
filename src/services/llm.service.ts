@@ -312,7 +312,7 @@ RULES:
                     stream: false,
                     options: {
                         temperature: 0.1, // Keep it deterministic
-                        format: "json"    // If using Ollama/Gemini JSON mode
+                        format: 'json', // If using Ollama/Gemini JSON mode
                     },
                 }),
             });
@@ -321,8 +321,8 @@ RULES:
 
             const cleanedResponse = this.extractCode(data.response);
             const fileList: string[] = JSON.parse(cleanedResponse);
-            console.log("Files list is: ", fileList);
-            console.log("PWD: ", process.cwd())
+            console.log('Files list is: ', fileList);
+            console.log('PWD: ', process.cwd());
 
             return Array.isArray(fileList) ? fileList : [];
         } catch (error) {
@@ -362,7 +362,9 @@ RULES:
 
         const relativePaths = await this.identifyRequiredFiles(userPrompt, directoryTree);
         if (relativePaths.length === 0) {
-            console.warn('[LLMService] No relevant files identified, falling back to direct generation.');
+            console.warn(
+                '[LLMService] No relevant files identified, falling back to direct generation.',
+            );
             return this.generateCode(userPrompt, codeContext, languageId);
         }
 
@@ -387,10 +389,7 @@ RULES:
         await repoIndexer.indexFile(uris);
 
         const queryVector = await this.generateEmbeddings(userPrompt);
-        const results = await this.workspaceTable
-            .search(queryVector)
-            .limit(10)
-            .toArray();
+        const results = await this.workspaceTable.search(queryVector).limit(10).toArray();
 
         const contextBlocks = results
             .filter((r: any) => r.text !== 'seed_marker')
@@ -402,7 +401,7 @@ RULES:
 
         const { endpoint, model } = this.extractConfig();
 
-        console.log("The context:", contextBlocks)
+        console.log('The context:', contextBlocks);
 
         const contextSection = contextBlocks
             ? `\n--- BEGIN PROJECT CONTEXT ---\nThe following symbols were retrieved from the project's codebase via vector search. These are REAL, EXISTING implementations. You MUST use them as your primary reference when generating code:\n\n${contextBlocks}\n--- END PROJECT CONTEXT ---`

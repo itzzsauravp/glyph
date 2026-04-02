@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type * as lancedb from '@lancedb/lancedb';
-import * as vscode from 'vscode';
 import { tree } from 'tree-node-cli';
+import * as vscode from 'vscode';
 import type LLMService from './llm.service';
 
 /**
@@ -15,7 +15,7 @@ export default class RepositoryIndexerService {
     constructor(
         private readonly workspaceTable: lancedb.Table,
         private readonly llmService: LLMService,
-    ) { }
+    ) {}
 
     /**
      * Computes a SHA-256 hex digest of the given text.

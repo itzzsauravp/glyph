@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
+import type LLMService from '../services/llm.service';
+import type RepositoryIndexerService from '../services/repo-indexer.service';
 import BaseCommand from './base.command';
-import LLMService from '../services/llm.service';
-import RepositoryIndexerService from '../services/repo-indexer.service';
 
 export default class TestCommand extends BaseCommand {
     constructor(
@@ -19,17 +19,18 @@ export default class TestCommand extends BaseCommand {
         );
 
         const val = await this.llmService.identifyRequiredFiles(
-            "Just list all the files that you found.", 
-            this.repoIndexer.parseDirectoryStructure()
+            'Just list all the files that you found.',
+            this.repoIndexer.parseDirectoryStructure(),
         );
-        
-        console.log("The val is:", val);
-        
+
+        console.log('The val is:', val);
+
         if (val && val.length > 0) {
-            vscode.window.showInformationMessage(`Identified ${val.length} files: ${val.join(', ')}`);
+            vscode.window.showInformationMessage(
+                `Identified ${val.length} files: ${val.join(', ')}`,
+            );
         } else {
             vscode.window.showWarningMessage('No files were identified or the check failed.');
         }
-
     };
 }
