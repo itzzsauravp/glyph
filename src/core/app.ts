@@ -78,7 +78,7 @@ export default class GlyphApp {
     }
 
     private registerCommands(): void {
-        this.commandManager.register(new TestCommand(this.llmService, this.repositoryIndexer));
+        this.commandManager.register(new TestCommand());
         this.commandManager.register(
             new GenerateCode(
                 this.editorService,
