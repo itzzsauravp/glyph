@@ -1,4 +1,4 @@
-export interface OllamaEmbedResponse {
+export interface LLMEmbedResponse {
     model: string;
     embeddings: number[][];
     total_duration?: number;
@@ -6,7 +6,7 @@ export interface OllamaEmbedResponse {
     prompt_eval_count?: number;
 }
 
-export interface OllamaGenerateResponse {
+export interface LLMGenerateResponse {
     model: string;
     created_at: string;
     response: string;
@@ -20,3 +20,11 @@ export interface OllamaGenerateResponse {
     eval_count: number;
     eval_duration: number;
 }
+
+export interface CloudRegisteryEntry {
+    models: Array<string>;
+    baseUrl: string;
+    helpLink: string;
+}
+
+export type ICloudRegistery = Record<string, CloudRegisteryEntry>
