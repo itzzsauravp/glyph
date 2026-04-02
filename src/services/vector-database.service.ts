@@ -65,7 +65,8 @@ export default class VectorDatabaseService {
                 text_type: 'word',
                 path: 'root',
                 symbolName: 'init',
-                fileHash: 'none',
+                symbolHash: 'none',
+                lastIndexed: new Date().toISOString(),
             },
         ];
 

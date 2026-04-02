@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
-import type RepositoryIndexerService from '../services/repo-indexer.service';
 import BaseCommand from './base.command';
+import LLMService from '../services/llm.service';
+import RepositoryIndexerService from '../services/repo-indexer.service';
 
 export default class TestCommand extends BaseCommand {
-    constructor(private readonly repositoryIndexer: RepositoryIndexerService) {
+    constructor(
+        private readonly llmService: LLMService,
+        private readonly repoIndexer: RepositoryIndexerService,
+    ) {
         super();
     }
 
@@ -14,23 +18,18 @@ export default class TestCommand extends BaseCommand {
             'Hey there!!!\nThis is a Starter test command for glyph',
         );
 
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            console.warn('From test commands: No active text editor found.');
-            return;
+        const val = await this.llmService.identifyRequiredFiles(
+            "Just list all the files that you found.", 
+            this.repoIndexer.parseDirectoryStructure()
+        );
+        
+        console.log("The val is:", val);
+        
+        if (val && val.length > 0) {
+            vscode.window.showInformationMessage(`Identified ${val.length} files: ${val.join(', ')}`);
+        } else {
+            vscode.window.showWarningMessage('No files were identified or the check failed.');
         }
 
-        const uri = editor.document.uri;
-
-        if (!this.repositoryIndexer) {
-            console.error('From test commands: repositoryIndexer is undefined.');
-            return;
-        }
-
-        try {
-            await this.repositoryIndexer.indexFile(uri);
-        } catch (error) {
-            console.error('From test commands: Error applying indexFile:', error);
-        }
     };
 }

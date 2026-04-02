@@ -56,8 +56,6 @@ export default class GenerateCode extends BaseCommand {
         try {
             this.statusBar.setState(StatusState.GeneratingCode);
 
-            await this.repositoryIndexer.indexFile(savedUri);
-
             const startPos = (this.rangeTracker.getRange(trackerId) || savedRange).start;
 
             const tempEdit = new vscode.WorkspaceEdit();
@@ -71,11 +69,11 @@ export default class GenerateCode extends BaseCommand {
 
             this.editorUI.showLoadingGhostText(editor, 'Generating', startPos);
 
-            const resultFromLLM = await this.llmService.generateCodeWithContext(
+            const resultFromLLM = await this.llmService.generateWithProjectContext(
                 prompt,
                 codeContext,
                 editor.document.languageId,
-                savedUri,
+                this.repositoryIndexer,
             );
 
             const tempRange = this.rangeTracker.getRange(tempTrackerId);
