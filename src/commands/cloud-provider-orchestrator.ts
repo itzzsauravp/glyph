@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type GlyphConfig from '../config/glyph.config';
 import { CLOUD_REGISTERY } from '../constants';
 import type StatusBarService from '../services/status-bar.service';
 import type { ICloudRegistery } from '../types/llm.types';
@@ -8,6 +9,7 @@ export class CloudProviderOrchestrator extends BaseCommand {
     constructor(
         private readonly context: vscode.ExtensionContext,
         private readonly statusBar: StatusBarService,
+        private readonly glyphConfig: GlyphConfig,
     ) {
         super();
     }
@@ -93,6 +95,8 @@ export class CloudProviderOrchestrator extends BaseCommand {
                 }),
             });
             if (response.status === 200) {
+                await this.glyphConfig.updateModel(model);
+                await this.glyphConfig.updateEndpoint(config.baseUrl);
                 this.statusBar.setModel(model);
                 return `Glyph successfully connected to ${model}`;
             } else if (response.status === 429) {

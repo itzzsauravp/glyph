@@ -100,7 +100,9 @@ export default class GlyphApp {
             ),
         );
         this.commandManager.register(new ModelSelect(this.glyphConfig, this.llmHealth));
-        this.commandManager.register(new CloudProviderOrchestrator(this.context, this.statusBar));
+        this.commandManager.register(
+            new CloudProviderOrchestrator(this.context, this.statusBar, this.glyphConfig),
+        );
         this.commandManager.register(
             new SetupCustomModel(this.context, this.glyphConfig, this.statusBar),
         );
