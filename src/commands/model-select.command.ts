@@ -37,6 +37,5 @@ export default class ModelSelect extends BaseCommand {
 
         await this.glyphConfig.updateModel(selected.label);
 
-        console.log(items, itemsWithSelection);
     };
 }

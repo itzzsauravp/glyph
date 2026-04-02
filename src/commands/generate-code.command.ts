@@ -5,6 +5,7 @@ import OllamaService from "../services/ollama.service";
 import EditorUIService from "../services/editor-ui.service";
 import StatusBarService, { StatusState } from "../services/status-bar.service";
 import RangeTrackerService from "../services/range-tracker.service";
+import RepositoryIndexerService from "../services/repo-indexer.service";
 
 export default class GenerateCode extends BaseCommand {
 
@@ -13,9 +14,10 @@ export default class GenerateCode extends BaseCommand {
         private readonly ollamaService: OllamaService,
         private readonly editorUI: EditorUIService,
         private readonly statusBar: StatusBarService,
-        private readonly rangeTracker: RangeTrackerService
+        private readonly rangeTracker: RangeTrackerService,
+        private readonly repositoryIndexer: RepositoryIndexerService,
     ) {
-        super()
+        super();
     }
 
     public id: string = "glyph.code";
@@ -51,6 +53,8 @@ export default class GenerateCode extends BaseCommand {
         try {
             this.statusBar.setState(StatusState.GeneratingCode);
 
+            await this.repositoryIndexer.indexFile(savedUri);
+
             const startPos = (this.rangeTracker.getRange(trackerId) || savedRange).start;
 
             const tempEdit = new vscode.WorkspaceEdit();
@@ -61,7 +65,12 @@ export default class GenerateCode extends BaseCommand {
 
             this.editorUI.showLoadingGhostText(editor, "Generating", startPos);
 
-            const resultFromLLM = await this.ollamaService.generateCode(prompt as string, codeContext, editor.document.languageId);
+            const resultFromLLM = await this.ollamaService.generateCodeWithContext(
+                prompt,
+                codeContext,
+                editor.document.languageId,
+                savedUri,
+            );
 
             const tempRange = this.rangeTracker.getRange(tempTrackerId);
             if (tempRange) {
