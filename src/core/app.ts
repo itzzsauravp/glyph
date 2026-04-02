@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { CloudProviderOrchestrator } from '../commands/cloud-provider-orchestrator';
 import GenerateCode from '../commands/generate-code.command';
 import GenerateDocs from '../commands/generate-docs.command';
 import ModelSelect from '../commands/model-select.command';
@@ -13,7 +14,6 @@ import RangeTrackerService from '../services/range-tracker.service';
 import RepositoryIndexerService from '../services/repo-indexer.service';
 import StatusBarService from '../services/status-bar.service';
 import VectorDatabaseService from '../services/vector-database.service';
-import { CloudProviderOrchestrator } from '../commands/cloud-provider-orchestrator';
 
 /**
  * Root application class — owns every service and command.

@@ -40,12 +40,15 @@ export default class GlyphConfig {
     public toggleUsingCloudOrchestrator = async () => {
         const config = vscode.workspace.getConfiguration('glyph');
         const usingCloudOrchestrator = config.get<boolean>('usingCloudOrchestrator', false);
-        await config.update('usingCloudOrchestrator', !usingCloudOrchestrator, vscode.ConfigurationTarget.Global);
+        await config.update(
+            'usingCloudOrchestrator',
+            !usingCloudOrchestrator,
+            vscode.ConfigurationTarget.Global,
+        );
         vscode.window.showInformationMessage(
             `Use of cloud AI model has been turned ${usingCloudOrchestrator ? 'On' : 'Off'}`,
         );
-
-    }
+    };
 
     public updateEndpoint = async (newEndpoint: string) => {
         const config = vscode.workspace.getConfiguration('glyph');

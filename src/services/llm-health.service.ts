@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import type GlyphConfig from '../config/glyph.config';
 
 export default class LLMHealth {
-    constructor(private readonly glyphConfig: GlyphConfig) { }
+    constructor(private readonly glyphConfig: GlyphConfig) {}
 
     private get baseUrl() {
         return this.glyphConfig.getExtensionConfig().endpoint;

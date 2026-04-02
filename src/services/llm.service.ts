@@ -109,9 +109,7 @@ export default class LLMService extends BaseLLMService {
         }
 
         if (!data.embeddings || !Array.isArray(data.embeddings) || data.embeddings.length === 0) {
-            throw new Error(
-                `LLM API did not return embeddings. Response: ${JSON.stringify(data)}`,
-            );
+            throw new Error(`LLM API did not return embeddings. Response: ${JSON.stringify(data)}`);
         }
 
         return data.embeddings[0];

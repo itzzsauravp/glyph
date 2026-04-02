@@ -27,4 +27,4 @@ export interface CloudRegisteryEntry {
     helpLink: string;
 }
 
-export type ICloudRegistery = Record<string, CloudRegisteryEntry>
+export type ICloudRegistery = Record<string, CloudRegisteryEntry>;
