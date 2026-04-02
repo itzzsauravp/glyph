@@ -1,103 +1,112 @@
 {
-    "name": "glyph",
-    "license": "MIT",
-    "displayName": "Glyph: Micro AI Helper",
-    "publisher": "sauravparajulee",
-    "description": "A simple AI helper tool to analyze, code and document for you using Ollama.",
-    "version": "0.1.0",
-    "icon": "images/icon.png",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/itzzsauravp/glyph"
-    },
-    "categories": [
-        "Programming Languages",
-        "Machine Learning",
-        "Snippets"
+  "name": "glyph",
+  "license": "MIT",
+  "displayName": "Glyph: Micro AI Helper",
+  "publisher": "sauravparajulee",
+  "description": "A simple AI helper tool to analyze, code and document for you using Ollama.",
+  "version": "0.1.0",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itzzsauravp/glyph"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Snippets"
+  ],
+  "keywords": [
+    "ollama",
+    "local ai",
+    "documentation",
+    "privacy",
+    "refactor"
+  ],
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "glyph.test",
+        "title": "Glyph: Start (Test)"
+      },
+      {
+        "command": "glyph.code",
+        "title": "Glyph: Code Generate"
+      },
+      {
+        "command": "glyph.docs",
+        "title": "Glyph: Docs Generate"
+      },
+      {
+        "command": "glyph.model_select",
+        "title": "Glyph: Select or Swap a model"
+      },
+      {
+        "command": "glyph.cloud_provider_orchestrator",
+        "title": "Glyph: Cloud Provider Orchestrator"
+      }
     ],
-    "keywords": [
-        "ollama",
-        "local ai",
-        "documentation",
-        "privacy",
-        "refactor"
-    ],
-    "engines": {
-        "vscode": "^1.110.0"
-    },
-    "activationEvents": [],
-    "main": "./dist/extension.js",
-    "contributes": {
-        "commands": [
-            {
-                "command": "glyph.test",
-                "title": "Glyph: Start (Test)"
-            },
-            {
-                "command": "glyph.code",
-                "title": "Glyph: Code Generate"
-            },
-            {
-                "command": "glyph.docs",
-                "title": "Glyph: Docs Generate"
-            },
-            {
-                "command": "glyph.model_select",
-                "title": "Glyph: Select or Swap a model"
-            }
-        ],
-        "configuration": {
-            "title": "Glyph",
-            "properties": {
-                "glyph.modelName": {
-                    "type": "string",
-                    "default": "",
-                    "description": "The name of the Ollama model to use for code/docs generation."
-                },
-                "glyph.embeddingModelName": {
-                    "type": "string",
-                    "default": "",
-                    "description": "The name of the Ollama model to use for vector generation."
-                },
-                "glyph.base_url": {
-                    "type": "string",
-                    "default": "http://localhost:11434",
-                    "description": "The URL of your Ollama instance."
-                },
-                "glyph.autoSave": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Automatically save the file after code/docs generation completes."
-                }
-            }
+    "configuration": {
+      "title": "Glyph",
+      "properties": {
+        "glyph.modelName": {
+          "type": "string",
+          "default": "",
+          "description": "The name of the Ollama model to use for code/docs generation."
+        },
+        "glyph.embeddingModelName": {
+          "type": "string",
+          "default": "",
+          "description": "The name of the Ollama model to use for vector generation."
+        },
+        "glyph.base_url": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "The URL of your Ollama instance."
+        },
+        "glyph.autoSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically save the file after code/docs generation completes."
+        },
+        "glyph.usingCloudOrchestrator": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only check this if not using local model"
         }
-    },
-    "scripts": {
-        "vscode:prepublish": "npm run package",
-        "compile": "webpack",
-        "watch": "webpack --watch",
-        "package": "webpack --mode production --devtool hidden-source-map",
-        "compile-tests": "tsc -p . --outDir out",
-        "watch-tests": "tsc -p . -w --outDir out",
-        "pretest": "npm run compile-tests && npm run compile && npm run lint",
-        "lint": "eslint src",
-        "test": "vscode-test"
-    },
-    "devDependencies": {
-        "@biomejs/biome": "2.4.10",
-        "@types/mocha": "^10.0.10",
-        "@types/node": "22.x",
-        "@types/vscode": "^1.110.0",
-        "@vscode/test-cli": "^0.0.12",
-        "@vscode/test-electron": "^2.5.2",
-        "eslint": "^9.39.3",
-        "ts-loader": "^9.5.4",
-        "typescript": "^5.9.3",
-        "typescript-eslint": "^8.56.1",
-        "webpack": "^5.105.3",
-        "webpack-cli": "^6.0.1"
-    },
-    "dependencies": {
-        "@lancedb/lancedb": "^0.27.2"
+      }
     }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.10",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/vscode": "^1.110.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.39.3",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1",
+    "webpack": "^5.105.3",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "@lancedb/lancedb": "^0.27.2"
+  }
 }

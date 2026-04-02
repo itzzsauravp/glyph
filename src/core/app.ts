@@ -7,12 +7,13 @@ import GlyphConfig from '../config/glyph.config';
 import CommandManager from '../services/command-manager.service';
 import EditorService from '../services/editor.service';
 import EditorUIService from '../services/editor-ui.service';
-import OllamaService from '../services/ollama.service';
-import OllamaHealth from '../services/ollama-health.service';
+import LLMService from '../services/llm.service';
+import LLMHealth from '../services/llm-health.service';
 import RangeTrackerService from '../services/range-tracker.service';
 import RepositoryIndexerService from '../services/repo-indexer.service';
 import StatusBarService from '../services/status-bar.service';
 import VectorDatabaseService from '../services/vector-database.service';
+import { CloudProviderOrchestrator } from '../commands/cloud-provider-orchestrator';
 
 /**
  * Root application class — owns every service and command.
@@ -20,15 +21,15 @@ import VectorDatabaseService from '../services/vector-database.service';
  * Initialization follows a strict sequential order so that every
  * dependency is fully resolved before it is handed to its consumers.
  *
- *   Config → Health → VectorDB → OllamaService → RepoIndexer → UI → Commands
+ *   Config → Health → VectorDB → llmService → RepoIndexer → UI → Commands
  */
 export default class GlyphApp {
     private readonly context: vscode.ExtensionContext;
     private readonly commandManager: CommandManager;
 
     private glyphConfig!: GlyphConfig;
-    private ollamaHealth!: OllamaHealth;
-    private ollamaService!: OllamaService;
+    private llmHealth!: LLMHealth;
+    private llmService!: LLMService;
     private vectorDatabase!: VectorDatabaseService;
     private repositoryIndexer!: RepositoryIndexerService;
     private editorService!: EditorService;
@@ -43,14 +44,14 @@ export default class GlyphApp {
 
     public async initialize(): Promise<void> {
         this.glyphConfig = new GlyphConfig();
-        this.ollamaHealth = new OllamaHealth(this.glyphConfig);
+        this.llmHealth = new LLMHealth(this.glyphConfig);
 
         this.vectorDatabase = await VectorDatabaseService.connectGlobalDatabase();
         const workspaceTable = await this.vectorDatabase.initializeWorkspaceTable();
 
-        this.ollamaService = new OllamaService(this.glyphConfig, workspaceTable);
+        this.llmService = new LLMService(this.glyphConfig, workspaceTable);
 
-        this.repositoryIndexer = new RepositoryIndexerService(workspaceTable, this.ollamaService);
+        this.repositoryIndexer = new RepositoryIndexerService(workspaceTable, this.llmService);
 
         this.editorUI = new EditorUIService();
         this.editorService = new EditorService(this.editorUI, this.glyphConfig);
@@ -62,7 +63,7 @@ export default class GlyphApp {
 
         this.registerCommands();
 
-        const preflightPassed = await this.ollamaHealth.preflight();
+        const preflightPassed = await this.llmHealth.preflight();
         this.statusBar.setHealthy(preflightPassed);
 
         if (!preflightPassed) {
@@ -79,7 +80,7 @@ export default class GlyphApp {
         this.commandManager.register(
             new GenerateCode(
                 this.editorService,
-                this.ollamaService,
+                this.llmService,
                 this.editorUI,
                 this.statusBar,
                 this.rangeTracker,
@@ -89,19 +90,20 @@ export default class GlyphApp {
         this.commandManager.register(
             new GenerateDocs(
                 this.editorService,
-                this.ollamaService,
+                this.llmService,
                 this.editorUI,
                 this.statusBar,
                 this.rangeTracker,
                 this.repositoryIndexer,
             ),
         );
-        this.commandManager.register(new ModelSelect(this.glyphConfig, this.ollamaHealth));
+        this.commandManager.register(new ModelSelect(this.glyphConfig, this.llmHealth));
+        this.commandManager.register(new CloudProviderOrchestrator(this.context, this.statusBar));
     }
 
     private startHealthPolling(): void {
         setInterval(async () => {
-            const reachable = await this.ollamaHealth.isReachable();
+            const reachable = await this.llmHealth.isReachable();
             this.statusBar.setHealthy(reachable);
         }, 30_000);
     }

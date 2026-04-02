@@ -7,8 +7,9 @@ export default class GlyphConfig {
         const embeddingModel = config.get<string>('embeddingModelName', '');
         const endpoint = config.get<string>('base_url', 'http://localhost:11434');
         const autoSave = config.get<boolean>('autoSave', false);
+        const usingCloudOrchestrator = config.get<boolean>('usingCloudOrchestrator', false);
 
-        return { model, endpoint, autoSave, embeddingModel };
+        return { model, endpoint, autoSave, embeddingModel, usingCloudOrchestrator };
     };
 
     public updateModel = async (newModel: string) => {
@@ -35,6 +36,16 @@ export default class GlyphConfig {
             `Auto Save after generation has been turned ${autoSave ? 'On' : 'Off'}`,
         );
     };
+
+    public toggleUsingCloudOrchestrator = async () => {
+        const config = vscode.workspace.getConfiguration('glyph');
+        const usingCloudOrchestrator = config.get<boolean>('usingCloudOrchestrator', false);
+        await config.update('usingCloudOrchestrator', !usingCloudOrchestrator, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(
+            `Use of cloud AI model has been turned ${usingCloudOrchestrator ? 'On' : 'Off'}`,
+        );
+
+    }
 
     public updateEndpoint = async (newEndpoint: string) => {
         const config = vscode.workspace.getConfiguration('glyph');
