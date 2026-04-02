@@ -4,7 +4,7 @@
     "displayName": "Glyph: Micro AI Helper",
     "publisher": "sauravparajulee",
     "description": "A simple AI helper tool to analyze, code and document for you using Ollama.",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "icon": "images/icon.png",
     "repository": {
         "type": "git",
@@ -48,6 +48,14 @@
             {
                 "command": "glyph.cloud_provider_orchestrator",
                 "title": "Glyph: Cloud Provider Orchestrator"
+            },
+            {
+                "command": "glyph.setup_custom_model",
+                "title": "Glyph: Setup Custom Model & API Key"
+            },
+            {
+                "command": "glyph.manage_api_keys",
+                "title": "Glyph: Manage / Delete API Keys"
             }
         ],
         "configuration": {
@@ -79,6 +87,50 @@
                     "description": "Only check this if not using local model"
                 }
             }
+        },
+        "submenus": [
+            {
+                "id": "glyph.actions",
+                "label": "Glyph"
+            }
+        ],
+        "menus": {
+            "editor/context": [
+                {
+                    "submenu": "glyph.actions",
+                    "group": "1_modification"
+                }
+            ],
+            "glyph.actions": [
+                {
+                    "command": "glyph.code",
+                    "group": "1_actions"
+                },
+                {
+                    "command": "glyph.docs",
+                    "group": "1_actions"
+                },
+                {
+                    "command": "glyph.test",
+                    "group": "2_diagnostics"
+                },
+                {
+                    "command": "glyph.model_select",
+                    "group": "3_config"
+                },
+                {
+                    "command": "glyph.cloud_provider_orchestrator",
+                    "group": "3_config"
+                },
+                {
+                    "command": "glyph.setup_custom_model",
+                    "group": "3_config"
+                },
+                {
+                    "command": "glyph.manage_api_keys",
+                    "group": "3_config"
+                }
+            ]
         }
     },
     "scripts": {

@@ -1,6 +1,6 @@
 # Glyph 🪶
 
-Glyph is a local-first AI assistant extension for Visual Studio Code, powered entirely by [Ollama](https://ollama.com/). 
+Glyph is a privacy-first AI assistant extension for Visual Studio Code. Built to be backend-agnostic, Glyph empowers you out of the box with the flexibility to choose: **process locally** for maximum privacy using any OpenAI-compatible API, or connect directly to **Cloud AI Providers** (like Groq, OpenRouter, or Gemini API) for blazing-fast generation on lightweight hardware.
 
 Designed for learners, minimalists, and privacy-conscious developers, Glyph provides **"micro-interventions"** rather than intrusive, full-scale AI workflows. It gets out of your way, putting you—the developer—back in complete control of your codebase.
 
@@ -8,21 +8,47 @@ Designed for learners, minimalists, and privacy-conscious developers, Glyph prov
 
 ## ✨ Features
 
-- **Micro-Completions:** Highlight a block of code, press a shortcut, and let Glyph generate missing pieces or refactor it based on a simple prompt. No ghost text trying to autocomplete every keypress.
-- **Auto-Documentation:** Instantly generate rich, standard docstrings for your functions and classes with a single command. 
-- **Privacy First (Local Only):** Your code never leaves your machine. Glyph communicates exclusively with your local Ollama instance.
-- **Customizable:** Pin your preferred LLM model and endpoint through the VS Code settings.
+- **Micro-Completions:** Highlight a block of code, right-click, and let Glyph generate missing pieces or refactor it based on a simple prompt. No ghost text trying to autocomplete every keypress.
+- **Auto-Documentation:** Instantly generate rich, standard docstrings for your functions and classes with a single command.
+- **Flexible Backends:** 
+  - **Local First:** Point Glyph to any local LLM runner (like LM Studio, vLLM, or Ollama) using the custom model setup to ensure your code never leaves your machine.
+  - **Cloud Providers:** Instantly scale to Groq, OpenRouter, or Gemini if your local hardware is struggling.
+- **Central Context Menu:** Manage your models seamlessly by right-clicking in the editor, clicking **Glyph**, and selecting your action.
 
 ---
 
-## 🛠️ Prerequisites
+## 🚀 Getting Started
 
-1. **[Ollama](https://ollama.com/)** must be installed and running on your machine.
-2. At least one model must be pulled locally. For example:
-   ```bash
-   ollama run llama3
-   ```
-   *Any model supported by Ollama will work. We recommend `llama3` or `phi3` for code tasks.*
+### 1. Setting Up Your AI Model
+
+You no longer need to manually modify `settings.json`. You can manage everything straight from the Editor Context Menu:
+
+1. Right-click anywhere in your code editor.
+2. Under the **Glyph** submenu, choose one of the following:
+
+   - **🚀 Select/Swap Built-in Model:** Pin a discovered local model if configured.
+   - **☁️ Cloud Provider Orchestrator:** Follow the prompt to connect to Groq, Gemini, or OpenRouter. Your API keys are stored securely using VS Code's native SecretStorage.
+   - **⚙️ Setup Custom Model & API Key:** Manually specify a custom LLM provider name, the API base URL, and an optional API key (essential for pointing to any generic OpenAI-compatible local/remote servers).
+
+3. To delete any of your stored API keys, navigate to the **Glyph** submenu and select **Manage / Delete API Keys**.
+
+### 2. Using Glyph
+
+Once setup is complete, highlight a snippet of code, right-click -> **Glyph**, and select:
+- **Glyph: Generate Code**
+- **Glyph: Generate Docs**
+
+#### Natively Bindable Shortcuts
+Because all Glyph tools are registered natively in VS Code, you can bind custom vim combinations or standard keyboard shortcuts straight to them without needing to go through the context menu.
+
+Example `keybindings.json`:
+```json
+{
+  "key": "ctrl+alt+g",
+  "command": "glyph.code",
+  "when": "editorTextFocus"
+}
+```
 
 ---
 
@@ -33,51 +59,23 @@ Glyph is built using a cleanly separated, class-based architecture that leverage
 ### Folder Structure
 ```text
 src/
- ├── commands/            # Individual, localized user commands (e.g., generate-code, generate-docs)
+ ├── commands/            # Individual, localized user actions
  ├── config/              # User settings and environment configuration
  ├── core/                # Bootstrap, app lifecycle, and extension entrypoint
- └── services/            # DI-managed services (EditorUI, Ollama client, health checks)
-```
-
-### Code Tour Example
-
-**Service Orchestration:** All services are cleanly injected in `app.ts` ensuring a single source of truth without hidden singletons.
-```typescript
-// src/core/app.ts
-private registerServices() {
-    this.ollamaHealth = new OllamaHealth();
-    this.glyphConfig = new GlyphConfig();
-    this.ollamaService = new OllamaService(this.glyphConfig);
-    this.editorUI = new EditorUIService();
-    this.editorService = new EditorService(this.editorUI);
-}
-```
-
-**Clean Commands:** Commands focus entirely on user intent, delegating the heavy lifting to injected services.
-```typescript
-// src/commands/generate-code.command.ts
-export default class GenerateCode extends BaseCommand {
-    constructor(
-        private readonly editorService: EditorService,
-        private readonly ollamaService: OllamaService,
-        private readonly editorUI: EditorUIService
-    ) { super(); }
-    
-    public action = async (): Promise<void> => {
-        // ... Minimal logic utilizing injected services
-    }
-}
+ └── services/            # DI-managed services
 ```
 
 ---
 
-## 🚀 Getting Started
+## 📝 Changelog
 
-1. Set your model and API endpoint in VS Code settings (`glyph.modelName`, `glyph.endpoint`).
-2. Highlight a snippet of code.
-3. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and type **Glyph**.
-4. Select `Glyph: Generate Code` or `Glyph: Generate Docs`.
+### Version 0.2.0 
+- **[Feature] Cloud Provider Support:** Added orchestrator to securely accept Provider tokens and proxy completions via Groq, OpenRouter, and Gemini.
+- **[Feature] Custom API Key Setup:** Added `glyph.setup_custom_model` allowing independent LLM URLs, model identifiers, and bearer tokens.
+- **[Refactor] Generic Backend Support:** Decoupled from Ollama to strictly support any OpenAI-compatible custom endpoints effortlessly.
+- **[Refactor] Editor Context Menu Architecture:** Consolidated all commands safely under the Editor Submenu while retaining raw command-binding compatibility.
 
+---
 ## ⚠️ Disclaimer
 **Glyph** is under active development and has not yet reached a stable version 1.0 release. Updates may introduce breaking changes to your configuration or workflow.
 

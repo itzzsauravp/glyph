@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import { CloudProviderOrchestrator } from '../commands/cloud-provider-orchestrator';
+import SetupCustomModel from '../commands/custom-model.command';
 import GenerateCode from '../commands/generate-code.command';
 import GenerateDocs from '../commands/generate-docs.command';
+import ManageApiKeys from '../commands/manage-keys.command';
 import ModelSelect from '../commands/model-select.command';
 import TestCommand from '../commands/test.command';
 import GlyphConfig from '../config/glyph.config';
@@ -99,6 +101,10 @@ export default class GlyphApp {
         );
         this.commandManager.register(new ModelSelect(this.glyphConfig, this.llmHealth));
         this.commandManager.register(new CloudProviderOrchestrator(this.context, this.statusBar));
+        this.commandManager.register(
+            new SetupCustomModel(this.context, this.glyphConfig, this.statusBar),
+        );
+        this.commandManager.register(new ManageApiKeys(this.context));
     }
 
     private startHealthPolling(): void {
