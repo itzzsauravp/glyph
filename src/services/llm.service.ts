@@ -2,16 +2,17 @@ import type * as lancedb from '@lancedb/lancedb';
 import type * as vscode from 'vscode';
 
 import type GlyphConfig from '../config/glyph.config';
-import type { OllamaGenerateResponse } from '../types/ollama.types';
-import LLMService from './base-llm.service';
+import type { LLMGenerateResponse } from '../types/llm.types';
+import BaseLLMService from './base-llm.service';
 
 /**
- * Wraps Ollama's HTTP API for code generation, documentation, and embeddings.
+ * Wraps the local LLM HTTP API for code generation, documentation, and embeddings.
+ * Compatible with Ollama, LM Studio, and any service exposing the same REST interface.
  *
  * The service holds a reference to the workspace's LanceDB table so it can
  * perform context-aware vector searches without depending on VectorDatabaseService.
  */
-export default class OllamaService extends LLMService {
+export default class LLMService extends BaseLLMService {
     constructor(
         private readonly glyphConfig: GlyphConfig,
         private readonly workspaceTable: lancedb.Table,
@@ -79,7 +80,7 @@ export default class OllamaService extends LLMService {
             return contextBlocks;
         } catch (error) {
             console.warn(
-                '[OllamaService] Context retrieval failed, proceeding without context:',
+                '[LocalLLMService] Context retrieval failed, proceeding without context:',
                 error,
             );
             return '';
@@ -104,12 +105,12 @@ export default class OllamaService extends LLMService {
         const data = (await response.json()) as any;
 
         if (data.error) {
-            throw new Error(`Ollama API returned an error: ${data.error}`);
+            throw new Error(`LLM API returned an error: ${data.error}`);
         }
 
         if (!data.embeddings || !Array.isArray(data.embeddings) || data.embeddings.length === 0) {
             throw new Error(
-                `Ollama API did not return embeddings. Response: ${JSON.stringify(data)}`,
+                `LLM API did not return embeddings. Response: ${JSON.stringify(data)}`,
             );
         }
 
@@ -142,7 +143,7 @@ RULES:
             }),
         });
 
-        const data = (await response.json()) as OllamaGenerateResponse;
+        const data = (await response.json()) as LLMGenerateResponse;
         return this.stripImports(this.extractCode(data.response));
     }
 
@@ -173,7 +174,7 @@ RULES:
             }),
         });
 
-        const data = (await response.json()) as OllamaGenerateResponse;
+        const data = (await response.json()) as LLMGenerateResponse;
         return this.extractCode(data.response);
     }
 
@@ -224,7 +225,7 @@ ${contextSection}
             }),
         });
 
-        const data = (await response.json()) as OllamaGenerateResponse;
+        const data = (await response.json()) as LLMGenerateResponse;
         return this.stripImports(this.extractCode(data.response));
     }
 
@@ -275,7 +276,7 @@ ${contextSection}
             }),
         });
 
-        const data = (await response.json()) as OllamaGenerateResponse;
+        const data = (await response.json()) as LLMGenerateResponse;
         return this.extractCode(data.response);
     }
 }

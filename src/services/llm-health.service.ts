@@ -1,23 +1,23 @@
 import * as vscode from 'vscode';
 import type GlyphConfig from '../config/glyph.config';
 
-export default class OllamaHealth {
-    constructor(private readonly glyphConfig: GlyphConfig) {}
+export default class LLMHealth {
+    constructor(private readonly glyphConfig: GlyphConfig) { }
 
     private get baseUrl() {
         return this.glyphConfig.getExtensionConfig().endpoint;
     }
 
     public async preflight() {
-        const ollamaInstalled = await this.isReachable();
-        if (!ollamaInstalled) {
+        const isInstalled = await this.isReachable();
+        if (!isInstalled) {
             vscode.window.showErrorMessage(
-                'Ollama service not reachable. Please make sure installed and running',
+                'LLM service not reachable. Please make sure it is installed and running.',
             );
-            console.error('Ollama not installed');
+            console.error('Local LLM service not reachable');
             return false;
         }
-        if (!(await this.getOllamaModels()).length) {
+        if (!(await this.getModels()).length) {
             vscode.window.showErrorMessage(
                 'Glyph requires at least one model to be installed. Please install a recommended model for your spec',
             );
@@ -34,12 +34,12 @@ export default class OllamaHealth {
             const response = await fetch(`${this.baseUrl}/api/tags`);
             return response.ok;
         } catch (_error) {
-            console.error('Ollama service not reachable');
+            console.error('Local LLM service not reachable');
             return false;
         }
     }
 
-    async getOllamaModels(): Promise<Array<string>> {
+    async getModels(): Promise<Array<string>> {
         try {
             const response = await fetch(`${this.baseUrl}/api/tags`);
             if (!response.ok) {
