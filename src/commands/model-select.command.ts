@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
 import type GlyphConfig from '../config/glyph.config';
-import type OllamaHealth from '../services/ollama-health.service';
+import type LocalLLMHealth from '../services/llm-health.service';
 import BaseCommand from './base.command';
 
 export default class ModelSelect extends BaseCommand {
     constructor(
         private readonly glyphConfig: GlyphConfig,
-        private readonly ollamaHealth: OllamaHealth,
+        private readonly llmHealth: LocalLLMHealth,
     ) {
         super();
     }
@@ -14,7 +14,7 @@ export default class ModelSelect extends BaseCommand {
     public id: string = 'glyph.model_select';
 
     public action = async () => {
-        const items = await this.ollamaHealth.getModelsForPicker();
+        const items = await this.llmHealth.getModelsForPicker();
         const { model: currentModel } = this.glyphConfig.getExtensionConfig();
 
         const itemsWithSelection = items.map((item) => {

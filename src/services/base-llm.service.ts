@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 
-export default abstract class LLMService {
+export default abstract class BaseLLMService {
     public abstract generateCode(prompt: string, code: string, languageId: string): Promise<string>;
     public abstract generateDocs(code: string, languageId: string): Promise<string>;
     public abstract generateCodeWithContext(
