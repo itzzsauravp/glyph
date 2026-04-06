@@ -1,5 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import type { LanguageModel } from 'ai';
+import type { EmbeddingModel, LanguageModel } from 'ai';
 import { BaseLLMProvider } from './base.provider';
 
 /**
@@ -24,7 +24,7 @@ export class OllamaProvider extends BaseLLMProvider {
         })(modelName);
     }
 
-    createEmbeddingModel(embeddingModelName: string) {
+    createEmbeddingModel(embeddingModelName: string): EmbeddingModel {
         return createOpenAI({
             baseURL: `${this.baseUrl.replace(/\/$/, '')}/v1`,
             apiKey: this.apiKey,

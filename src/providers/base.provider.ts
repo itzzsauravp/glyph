@@ -1,4 +1,4 @@
-import type { LanguageModel } from 'ai';
+import type { EmbeddingModel, LanguageModel } from 'ai';
 
 /**
  * Abstract base class for all LLM providers.
@@ -26,7 +26,9 @@ export abstract class BaseLLMProvider {
 
     /**
      * Instantiate a Vercel AI SDK EmbeddingModel.
-    abstract createEmbeddingModel(embeddingModelName: string): unknown;
+     * Not every provider supports embeddings — throw if unsupported.
+     */
+    abstract createEmbeddingModel(embeddingModelName: string): EmbeddingModel;
 
     /**
      * Return `true` when the provider is reachable.

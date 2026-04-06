@@ -1,4 +1,4 @@
-import type { LanguageModel } from 'ai';
+import type { EmbeddingModel, LanguageModel } from 'ai';
 import { type BaseLLMProvider, resolveProvider } from '../providers';
 
 /**
@@ -22,13 +22,12 @@ export const ProviderFactory = {
         return resolveProvider(providerType, baseUrl, apiKey).createModel(modelName);
     },
 
-    /** Convenience — create an EmbeddingModel in one call. */
     createEmbeddingModel(
         providerType: string,
         embeddingModelName: string,
         baseUrl: string,
         apiKey?: string,
-    ) {
+    ): EmbeddingModel {
         return resolveProvider(providerType, baseUrl, apiKey).createEmbeddingModel(
             embeddingModelName,
         );

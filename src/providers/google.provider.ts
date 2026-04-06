@@ -1,5 +1,5 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import type { LanguageModel } from 'ai';
+import type { EmbeddingModel, LanguageModel } from 'ai';
 import { CLOUD_REGISTERY } from '../constants';
 import { BaseLLMProvider } from './base.provider';
 
@@ -28,7 +28,7 @@ export class GoogleProvider extends BaseLLMProvider {
         })(modelName);
     }
 
-    createEmbeddingModel(embeddingModelName: string) {
+    createEmbeddingModel(embeddingModelName: string): EmbeddingModel {
         return createGoogleGenerativeAI({
             apiKey: this.apiKey,
         }).textEmbeddingModel(embeddingModelName);

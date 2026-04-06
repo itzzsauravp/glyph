@@ -1,5 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import type { LanguageModel } from 'ai';
+import type { EmbeddingModel, LanguageModel } from 'ai';
 import { CLOUD_REGISTERY } from '../constants';
 import { BaseLLMProvider } from './base.provider';
 
@@ -27,7 +27,7 @@ export class OpenRouterProvider extends BaseLLMProvider {
         })(modelName);
     }
 
-    createEmbeddingModel(embeddingModelName: string) {
+    createEmbeddingModel(embeddingModelName: string): EmbeddingModel {
         return createOpenAI({
             baseURL: this.baseUrl,
             apiKey: this.apiKey,

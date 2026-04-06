@@ -1,5 +1,5 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
-import type { LanguageModel } from 'ai';
+import type { EmbeddingModel, LanguageModel } from 'ai';
 import { BaseLLMProvider } from './base.provider';
 
 /**
@@ -31,7 +31,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         })(modelName);
     }
 
-    createEmbeddingModel(_embeddingModelName: string): never {
+    createEmbeddingModel(_embeddingModelName: string): EmbeddingModel {
         throw new Error(
             'Anthropic does not support text embeddings natively. Use a different provider for embeddings.',
         );
