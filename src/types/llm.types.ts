@@ -1,29 +1,27 @@
-export interface LLMEmbedResponse {
+export interface LlmConfig {
     model: string;
-    embeddings: number[][];
-    total_duration?: number;
-    load_duration?: number;
-    prompt_eval_count?: number;
+    endpoint: string;
+    autoSave: boolean;
+    embeddingModel: string;
+    usingCloudOrchestrator: boolean;
+    providerType: string;
 }
 
-export interface LLMGenerateResponse {
-    model: string;
-    created_at: string;
-    response: string;
-    done: boolean;
-    done_reason?: string;
-    context?: number[];
-    total_duration: number;
-    load_duration: number;
-    prompt_eval_count: number;
-    prompt_eval_duration: number;
-    eval_count: number;
-    eval_duration: number;
+export enum ProviderType {
+    Ollama = 'Ollama',
+    LmStudio = 'LM Studio',
+    OpenRouter = 'OpenRouter',
+    OpenAI = 'OpenAI',
+    Anthropic = 'Anthropic',
+    Google = 'Google'
 }
 
 export interface CloudRegisteryEntry {
     models: Array<string>;
     baseUrl: string;
+    chatUrl: string;
+    completionsUrl: string;
+    generateUrl: string;
     helpLink: string;
 }
 
