@@ -33,14 +33,12 @@ export default class RepositoryIndexerService {
         try {
             const rows = await this.workspaceTable
                 .search(new Float32Array(768).fill(0))
-                .where(`path = '${filePath}'`)
+                .where(`path = '${filePath}' AND text != 'seed_marker' `)
                 .limit(1000)
                 .toArray();
 
             for (const row of rows) {
-                if (row.text !== 'seed_marker') {
-                    existing.set(row.symbolName as string, row.symbolHash as string);
-                }
+                existing.set(row.symbolName as string, row.symbolHash as string);
             }
         } catch (_error) {
             // Table may be empty or filter may match nothing — both are fine.
