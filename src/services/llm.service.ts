@@ -1,23 +1,21 @@
 import path from 'node:path';
 import type * as lancedb from '@lancedb/lancedb';
+import { embed, generateText, streamText } from 'ai';
 import * as vscode from 'vscode';
 
 import type GlyphConfig from '../config/glyph.config';
-import type { LLMGenerateResponse } from '../types/llm.types';
 import BaseLLMService from './base-llm.service';
+import { ProviderFactory } from './provider-factory.service';
 import type RepositoryIndexerService from './repo-indexer.service';
 
 /**
- * Wraps the local LLM HTTP API for code generation, documentation, and embeddings.
- * Compatible with Ollama, LM Studio, and any service exposing the same REST interface.
- *
- * The service holds a reference to the workspace's LanceDB table so it can
- * perform context-aware vector searches without depending on VectorDatabaseService.
+ * Service that interfaces with large language models through the Vercel AI SDK.
+ * Supports Cloud (OpenRouter, OpenAI, etc.) and Local (Ollama, LM Studio) models via unify provider abstractions.
  */
 export default class LLMService extends BaseLLMService {
     constructor(
-        private readonly glyphConfig: GlyphConfig,
-        private readonly workspaceTable: lancedb.Table,
+        public readonly glyphConfig: GlyphConfig,
+        public readonly workspaceTable: lancedb.Table,
     ) {
         super();
     }
@@ -45,14 +43,59 @@ export default class LLMService extends BaseLLMService {
             .trim();
     }
 
-    private extractConfig() {
-        return this.glyphConfig.getExtensionConfig();
+    private async getLanguageModel() {
+        const config = this.glyphConfig.getExtensionConfig();
+        const apiKey = await this.glyphConfig.getApiKey(config.providerType);
+
+        if (!config.model) {
+            throw new Error('No target model configured in Glyph settings.');
+        }
+
+        return ProviderFactory.createModel(
+            config.providerType,
+            config.model,
+            config.endpoint,
+            apiKey,
+        );
     }
 
-    /**
-     * Queries the workspace table for the top-K vector matches scoped to a
-     * single file and returns them as a formatted context block.
-     */
+    private async getEmbeddingModel() {
+        const config = this.glyphConfig.getExtensionConfig();
+        const apiKey = await this.glyphConfig.getApiKey(config.providerType);
+
+        if (!config.embeddingModel) {
+            throw new Error('No embedding model configured in Glyph settings.');
+        }
+
+        return ProviderFactory.createEmbeddingModel(
+            config.providerType,
+            config.embeddingModel,
+            config.endpoint,
+            apiKey,
+        );
+    }
+
+    private handleError(error: unknown): never {
+        let message = "An unknown error occurred during LLM operation.";
+        if (error instanceof Error) {
+            message = error.message;
+        }
+
+        console.error('[LLMService Error]', error);
+
+        if (message.includes('fetch failed') || message.includes('ECONNREFUSED')) {
+            throw new Error(
+                'Connection Refused: Ensure your local LLM is running or your internet is active.',
+            );
+        } else if (message.includes('401') || message.includes('API key')) {
+            throw new Error('Invalid API Key: Please check your provider API key in settings.');
+        } else if (message.includes('404')) {
+            throw new Error('Model Not Found: Ensure the model name exists on your provider.');
+        }
+
+        throw new Error(`LLM Error: ${message}`);
+    }
+
     private async retrieveFileContext(
         queryText: string,
         documentUri: vscode.Uri,
@@ -72,17 +115,17 @@ export default class LLMService extends BaseLLMService {
             }
 
             const contextBlocks = results
-                .filter((r: any) => r.text !== 'seed_marker')
+                .filter((r) => r.text !== "seed_marker")
                 .map(
-                    (r: any, _i: number) =>
+                    (r) =>
                         `--- [ALREADY DEFINED IN FILE] Symbol: ${r.symbolName} (${r.text_type}) ---\n${r.text}`,
                 )
-                .join('\n\n');
+                .join("\n\n");
 
             return contextBlocks;
         } catch (error) {
             console.warn(
-                '[LocalLLMService] Context retrieval failed, proceeding without context:',
+                '[LLMService] Context retrieval failed, proceeding without context:',
                 error,
             );
             return '';
@@ -90,37 +133,28 @@ export default class LLMService extends BaseLLMService {
     }
 
     public async generateEmbeddings(content: string | Array<string>): Promise<number[]> {
-        const { endpoint, embeddingModel } = this.extractConfig();
+        try {
+            const embeddingModel = await this.getEmbeddingModel();
 
-        if (!embeddingModel) {
-            throw new Error('No embedding model configured in Glyph settings.');
-        }
+            // Standardize into array of contents
+            const contents = Array.isArray(content) ? content : [content];
 
-        const response = await fetch(`${endpoint}/api/embed`, {
-            method: 'POST',
-            body: JSON.stringify({
+            // For a single vector return
+            const result = await embed({
                 model: embeddingModel,
-                input: content,
-            }),
-        });
+                value: contents.join('\n'),
+            });
 
-        const data = (await response.json()) as any;
-
-        if (data.error) {
-            throw new Error(`LLM API returned an error: ${data.error}`);
+            return result.embedding;
+        } catch (error) {
+            this.handleError(error);
         }
-
-        if (!data.embeddings || !Array.isArray(data.embeddings) || data.embeddings.length === 0) {
-            throw new Error(`LLM API did not return embeddings. Response: ${JSON.stringify(data)}`);
-        }
-
-        return data.embeddings[0];
     }
 
     public async generateCode(prompt: string, code: string, languageId: string): Promise<string> {
-        const { endpoint, model } = this.extractConfig();
-
-        const systemPrompt = `
+        try {
+            const model = await this.getLanguageModel();
+            const systemPrompt = `
 You are a specialized programming assistant.
 Your task is to modify ONLY the provided code block in ${languageId} according to the instructions.
 
@@ -133,24 +167,22 @@ RULES:
 6. Do not include any backticks.
 `;
 
-        const response = await fetch(`${endpoint}/api/generate`, {
-            method: 'POST',
-            body: JSON.stringify({
-                system: systemPrompt,
+            const { text } = await generateText({
                 model,
+                system: systemPrompt,
                 prompt: `Instructions: ${prompt}\n\nCode block to modify:\n${code}`,
-                stream: false,
-            }),
-        });
+            });
 
-        const data = (await response.json()) as LLMGenerateResponse;
-        return this.stripImports(this.extractCode(data.response));
+            return this.stripImports(this.extractCode(text));
+        } catch (error) {
+            this.handleError(error);
+        }
     }
 
     public async generateDocs(code: string, languageId: string): Promise<string> {
-        const { endpoint, model } = this.extractConfig();
-
-        const systemPrompt = `
+        try {
+            const model = await this.getLanguageModel();
+            const systemPrompt = `
 You are an expert technical writer and developer.
 Your task is to generate ONLY the documentation comment block (Docstring) for the provided code in ${languageId}.
 
@@ -163,44 +195,32 @@ RULES:
 6. Focus on parameters, return values, and a brief summary.
 `;
 
-        const response = await fetch(`${endpoint}/api/generate`, {
-            method: 'POST',
-            body: JSON.stringify({
+            const { text } = await generateText({
                 model,
                 system: systemPrompt,
                 prompt: `Code to document:\n${code}`,
-                stream: false,
-                options: { temperature: 0.1 },
-            }),
-        });
+                temperature: 0.1,
+            });
 
-        const data = (await response.json()) as LLMGenerateResponse;
-        return this.extractCode(data.response);
+            return this.extractCode(text);
+        } catch (error) {
+            this.handleError(error);
+        }
     }
 
-    /**
-     * Generates code with awareness of the surrounding file context.
-     *
-     * 1. Embeds the user prompt into a vector.
-     * 2. Searches the workspace table for the most relevant symbols in the
-     *    target document.
-     * 3. Injects those symbols as contextual reference into the system prompt.
-     */
     public async generateCodeWithContext(
         prompt: string,
         code: string,
         languageId: string,
         documentUri: vscode.Uri,
     ): Promise<string> {
-        const { endpoint, model } = this.extractConfig();
+        try {
+            const contextBlock = await this.retrieveFileContext(prompt, documentUri);
+            const contextSection = contextBlock
+                ? `\nThe following symbols ALREADY EXIST in the same file. Do NOT re-define them. Just CALL them if needed:\n${contextBlock}`
+                : '';
 
-        const contextBlock = await this.retrieveFileContext(prompt, documentUri);
-
-        const contextSection = contextBlock
-            ? `\nThe following symbols ALREADY EXIST in the same file. Do NOT re-define them. Just CALL them if needed:\n${contextBlock}`
-            : '';
-
-        const systemPrompt = `
+            const systemPrompt = `
 You are a specialized programming assistant.
 You are editing a SPECIFIC CODE BLOCK inside a larger ${languageId} file.
 Return ONLY the replacement for that block.
@@ -215,41 +235,31 @@ RULES:
 ${contextSection}
 `;
 
-        const response = await fetch(`${endpoint}/api/generate`, {
-            method: 'POST',
-            body: JSON.stringify({
-                system: systemPrompt,
+            const model = await this.getLanguageModel();
+            const { text } = await generateText({
                 model,
+                system: systemPrompt,
                 prompt: `Instructions: ${prompt}\n\nCode block to modify (return ONLY the replacement for this block):\n${code}`,
-                stream: false,
-            }),
-        });
+            });
 
-        const data = (await response.json()) as LLMGenerateResponse;
-        return this.stripImports(this.extractCode(data.response));
+            return this.stripImports(this.extractCode(text));
+        } catch (error) {
+            this.handleError(error);
+        }
     }
 
-    /**
-     * Generates documentation with awareness of the surrounding file context.
-     *
-     * Works identically to generateDocsWithContext but enriches the system
-     * prompt with related types and functions from the same file so the
-     * generated docstring can reference them accurately.
-     */
     public async generateDocsWithContext(
         code: string,
         languageId: string,
         documentUri: vscode.Uri,
     ): Promise<string> {
-        const { endpoint, model } = this.extractConfig();
+        try {
+            const contextBlock = await this.retrieveFileContext(code, documentUri);
+            const contextSection = contextBlock
+                ? `\n\nRELEVANT CONTEXT FROM THE CURRENT FILE (use as reference for accurate documentation):\n${contextBlock}`
+                : '';
 
-        const contextBlock = await this.retrieveFileContext(code, documentUri);
-
-        const contextSection = contextBlock
-            ? `\n\nRELEVANT CONTEXT FROM THE CURRENT FILE (use as reference for accurate documentation):\n${contextBlock}`
-            : '';
-
-        const systemPrompt = `
+            const systemPrompt = `
 You are an expert technical writer and developer.
 Your task is to generate ONLY the documentation comment block (Docstring) for the provided code in ${languageId}.
 
@@ -265,32 +275,26 @@ RULES:
 ${contextSection}
 `;
 
-        const response = await fetch(`${endpoint}/api/generate`, {
-            method: 'POST',
-            body: JSON.stringify({
+            const model = await this.getLanguageModel();
+            const { text } = await generateText({
                 model,
                 system: systemPrompt,
                 prompt: `Code to document:\n${code}`,
-                stream: false,
-                options: { temperature: 0.1 },
-            }),
-        });
+                temperature: 0.1,
+            });
 
-        const data = (await response.json()) as LLMGenerateResponse;
-        return this.extractCode(data.response);
+            return this.extractCode(text);
+        } catch (error) {
+            this.handleError(error);
+        }
     }
 
-    /**
-     * Analyzes the project structure to identify which files contain relevant logic.
-     * This is the "Phase 1: Discovery" step before actual code generation.
-     */
     public async identifyRequiredFiles(
         userPrompt: string,
         directoryTree: string,
     ): Promise<string[]> {
-        const { endpoint, model } = this.extractConfig();
-
-        const systemPrompt = `
+        try {
+            const systemPrompt = `
 You are a senior software architect. 
 Given a directory structure and a user's coding request, identify the specific files that likely contain the relevant logic, types, or context needed to complete the task.
 
@@ -301,29 +305,16 @@ RULES:
 4. If the directory structure is small, you can include all relevant source files.
 `;
 
-        try {
-            const response = await fetch(`${endpoint}/api/generate`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    system: systemPrompt,
-                    model,
-                    // We pass the tree and the user's intent here
-                    prompt: `Directory Structure:\n${directoryTree}\n\nUser Request: "${userPrompt}"\n\nJSON array of required file paths:`,
-                    stream: false,
-                    options: {
-                        temperature: 0.1, // Keep it deterministic
-                        format: 'json', // If using Ollama/Gemini JSON mode
-                    },
-                }),
+            const model = await this.getLanguageModel();
+            const { text } = await generateText({
+                model,
+                system: systemPrompt,
+                prompt: `Directory Structure:\n${directoryTree}\n\nUser Request: "${userPrompt}"\n\nJSON array of required file paths:`,
+                temperature: 0.1,
             });
 
-            const data = (await response.json()) as LLMGenerateResponse;
-
-            const cleanedResponse = this.extractCode(data.response);
+            const cleanedResponse = this.extractCode(text);
             const fileList: string[] = JSON.parse(cleanedResponse);
-            console.log('Files list is: ', fileList);
-            console.log('PWD: ', process.cwd());
-
             return Array.isArray(fileList) ? fileList : [];
         } catch (error) {
             console.error('[Glyph]: Failed to identify required files', error);
@@ -331,83 +322,64 @@ RULES:
         }
     }
 
-    /**
-     * Full orchestration pipeline:
-     *
-     * 1. Parses the workspace directory tree.
-     * 2. Asks the LLM which files are relevant to the user's prompt.
-     * 3. Resolves relative paths → absolute vscode.Uri[].
-     * 4. Indexes those files (hash-based skip for unchanged symbols).
-     * 5. Performs a vector search for contextually relevant symbols.
-     * 6. Generates code using the discovered context.
-     *
-     * @returns The generated code string from the LLM.
-     */
     public async generateWithProjectContext(
         userPrompt: string,
         codeContext: string,
         languageId: string,
         repoIndexer: RepositoryIndexerService,
     ): Promise<string> {
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceRoot) {
-            throw new Error('[LLMService] No workspace folder open.');
-        }
-
-        const directoryTree = repoIndexer.parseDirectoryStructure();
-        if (!directoryTree) {
-            console.warn('[LLMService] Empty directory tree, falling back to direct generation.');
-            return this.generateCode(userPrompt, codeContext, languageId);
-        }
-
-        const relativePaths = await this.identifyRequiredFiles(userPrompt, directoryTree);
-        if (relativePaths.length === 0) {
-            console.warn(
-                '[LLMService] No relevant files identified, falling back to direct generation.',
-            );
-            return this.generateCode(userPrompt, codeContext, languageId);
-        }
-
-        const uris: vscode.Uri[] = [];
-        for (const relativePath of relativePaths) {
-            const absolutePath = path.resolve(workspaceRoot, relativePath);
-            const uri = vscode.Uri.file(absolutePath);
-            try {
-                await vscode.workspace.fs.stat(uri);
-                uris.push(uri);
-            } catch {
-                console.warn(`[LLMService] Skipping non-existent file: ${relativePath}`);
+        try {
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                throw new Error('[LLMService] No workspace folder open.');
             }
-        }
 
-        if (uris.length === 0) {
-            console.warn('[LLMService] None of the identified files exist, falling back.');
-            return this.generateCode(userPrompt, codeContext, languageId);
-        }
+            const directoryTree = repoIndexer.parseDirectoryStructure();
+            if (!directoryTree) {
+                return this.generateCode(userPrompt, codeContext, languageId);
+            }
 
-        console.log(`[LLMService] Indexing ${uris.length} discovered files...`);
-        await repoIndexer.indexFile(uris);
+            const relativePaths = await this.identifyRequiredFiles(userPrompt, directoryTree);
+            if (relativePaths.length === 0) {
+                return this.generateCode(userPrompt, codeContext, languageId);
+            }
 
-        const queryVector = await this.generateEmbeddings(userPrompt);
-        const results = await this.workspaceTable.search(queryVector).limit(10).toArray();
+            console.log('Relative Paths: ', relativePaths);
 
-        const contextBlocks = results
-            .filter((r: any) => r.text !== 'seed_marker')
-            .map(
-                (r: any) =>
-                    `--- [FROM ${r.path}] Symbol: ${r.symbolName} (${r.text_type}) ---\n${r.text}`,
-            )
-            .join('\n\n');
+            const uris: vscode.Uri[] = [];
+            for (const relativePath of relativePaths) {
+                const absolutePath = path.resolve(workspaceRoot, relativePath);
+                const uri = vscode.Uri.file(absolutePath);
+                try {
+                    await vscode.workspace.fs.stat(uri);
+                    uris.push(uri);
+                } catch {
+                    console.warn(`[LLMService] Skipping non-existent file: ${relativePath}`);
+                }
+            }
 
-        const { endpoint, model } = this.extractConfig();
+            if (uris.length === 0) {
+                return this.generateCode(userPrompt, codeContext, languageId);
+            }
 
-        console.log('The context:', contextBlocks);
+            await repoIndexer.indexFile(uris);
 
-        const contextSection = contextBlocks
-            ? `\n--- BEGIN PROJECT CONTEXT ---\nThe following symbols were retrieved from the project's codebase via vector search. These are REAL, EXISTING implementations. You MUST use them as your primary reference when generating code:\n\n${contextBlocks}\n--- END PROJECT CONTEXT ---`
-            : '';
+            const queryVector = await this.generateEmbeddings(userPrompt);
+            const results = await this.workspaceTable.search(queryVector).limit(10).toArray();
 
-        const systemPrompt = `
+            const contextBlocks = results
+                .filter((r) => r.text !== "seed_marker")
+                .map(
+                    (r) =>
+                        `--- [FROM ${r.path}] Symbol: ${r.symbolName} (${r.text_type}) ---\n${r.text}`,
+                )
+                .join("\n\n");
+
+            const contextSection = contextBlocks
+                ? `\n--- BEGIN PROJECT CONTEXT ---\nThe following symbols were retrieved from the project's codebase via vector search. These are REAL, EXISTING implementations. You MUST use them as your primary reference when generating code:\n\n${contextBlocks}\n--- END PROJECT CONTEXT ---`
+                : '';
+
+            const systemPrompt = `
 You are a specialized programming assistant working inside a ${languageId} project.
 You are editing a SPECIFIC CODE BLOCK inside a larger file.
 
@@ -427,17 +399,42 @@ RULES:
 ${contextSection}
 `;
 
-        const response = await fetch(`${endpoint}/api/generate`, {
-            method: 'POST',
-            body: JSON.stringify({
-                system: systemPrompt,
+            const model = await this.getLanguageModel();
+            const { text } = await generateText({
                 model,
+                system: systemPrompt,
                 prompt: `Instructions: ${userPrompt}\n\nCode block to modify (return ONLY the replacement for this block):\n${codeContext}`,
-                stream: false,
-            }),
-        });
+            });
 
-        const data = (await response.json()) as LLMGenerateResponse;
-        return this.stripImports(this.extractCode(data.response));
+            return this.stripImports(this.extractCode(text));
+        } catch (error) {
+            return this.handleError(error);
+        }
+    }
+
+    /**
+     * Executes a brainstorming session (chat) with streaming chunks yielded via callback.
+     */
+    public async executeChatStream(
+        messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+        onChunk: (chunk: string) => void,
+    ): Promise<string> {
+        try {
+            const model = await this.getLanguageModel();
+
+            const { textStream, text } = await streamText({
+                model,
+                messages,
+            });
+
+            for await (const chunk of textStream) {
+                onChunk(chunk);
+            }
+
+            // Return the full awaited string once the stream completes.
+            return await text;
+        } catch (error) {
+            this.handleError(error);
+        }
     }
 }

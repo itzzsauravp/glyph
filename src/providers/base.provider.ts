@@ -26,9 +26,7 @@ export abstract class BaseLLMProvider {
 
     /**
      * Instantiate a Vercel AI SDK EmbeddingModel.
-     * Not every provider supports embeddings — throw if unsupported.
-     */
-    abstract createEmbeddingModel(embeddingModelName: string): any;
+    abstract createEmbeddingModel(embeddingModelName: string): unknown;
 
     /**
      * Return `true` when the provider is reachable.
@@ -45,8 +43,10 @@ export abstract class BaseLLMProvider {
      * Rich picker items (label + detail) for the VS Code QuickPick UI.
      * By default falls back to plain labels built from `getModels()`.
      */
-    async getModelsForPicker(): Promise<Array<{ label: string; description?: string; detail?: string }>> {
+    async getModelsForPicker(): Promise<
+        Array<{ label: string; description?: string; detail?: string }>
+    > {
         const models = await this.getModels();
-        return models.map(m => ({ label: m }));
+        return models.map((m) => ({ label: m }));
     }
 }
