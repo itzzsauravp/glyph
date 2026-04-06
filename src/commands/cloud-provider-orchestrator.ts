@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type GlyphConfig from '../config/glyph.config';
 import { CLOUD_REGISTERY } from '../constants';
+import { resolveProvider } from '../providers';
 import type StatusBarService from '../services/status-bar.service';
 import type { ICloudRegistery } from '../types/llm.types';
 import BaseCommand from './base.command';
@@ -39,7 +40,6 @@ export class CloudProviderOrchestrator extends BaseCommand {
         const secretKey = `glyph.apiKey.${selectedProvider.toLowerCase()}`;
         let apiKey = await this.context.secrets.get(secretKey);
 
-        // TODO: have to add commands to let the user remove and manage their API keys
         if (!apiKey) {
             apiKey = await vscode.window.showInputBox({
                 prompt: `Enter your ${selectedProvider} API Key. Get it here: ${this.cloudRegistry[selectedProvider as keyof typeof this.cloudRegistry].helpLink}`,
@@ -78,32 +78,26 @@ export class CloudProviderOrchestrator extends BaseCommand {
         );
     };
 
+    /**
+     * Verifies the connection by delegating to the provider's own `isReachable()`.
+     * This ensures the correct endpoint paths and auth headers are used per-provider.
+     */
     private async verifyConnection(provider: string, model: string, key: string): Promise<string> {
-        const config = CLOUD_REGISTERY[provider];
-
         try {
-            const response = await fetch(config.baseUrl, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${key}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: model,
-                    messages: [{ role: 'user', content: 'ping' }],
-                    max_tokens: 1,
-                }),
-            });
-            if (response.status === 200) {
+            const config = CLOUD_REGISTERY[provider];
+            const providerInstance = resolveProvider(provider, config.baseUrl, key);
+            const reachable = await providerInstance.isReachable(model);
+
+            if (reachable) {
                 await this.glyphConfig.updateModel(model);
                 await this.glyphConfig.updateEndpoint(config.baseUrl);
+                await this.glyphConfig.updateProviderType(provider);
+                await this.glyphConfig.addRegisteredModel(provider, model, config.baseUrl);
+
                 this.statusBar.setModel(model);
                 return `Glyph successfully connected to ${model}`;
-            } else if (response.status === 429) {
-                this.statusBar.setHealthy(false);
-                return `${model} has hit the rate limit`;
             } else {
-                return ``;
+                return '';
             }
         } catch (error) {
             console.error(
