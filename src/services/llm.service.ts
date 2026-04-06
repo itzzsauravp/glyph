@@ -76,7 +76,7 @@ export default class LLMService extends BaseLLMService {
     }
 
     private handleError(error: unknown): never {
-        let message = "An unknown error occurred during LLM operation.";
+        let message = 'An unknown error occurred during LLM operation.';
         if (error instanceof Error) {
             message = error.message;
         }
@@ -115,12 +115,12 @@ export default class LLMService extends BaseLLMService {
             }
 
             const contextBlocks = results
-                .filter((r) => r.text !== "seed_marker")
+                .filter((r) => r.text !== 'seed_marker')
                 .map(
                     (r) =>
                         `--- [ALREADY DEFINED IN FILE] Symbol: ${r.symbolName} (${r.text_type}) ---\n${r.text}`,
                 )
-                .join("\n\n");
+                .join('\n\n');
 
             return contextBlocks;
         } catch (error) {
@@ -368,12 +368,12 @@ RULES:
             const results = await this.workspaceTable.search(queryVector).limit(10).toArray();
 
             const contextBlocks = results
-                .filter((r) => r.text !== "seed_marker")
+                .filter((r) => r.text !== 'seed_marker')
                 .map(
                     (r) =>
                         `--- [FROM ${r.path}] Symbol: ${r.symbolName} (${r.text_type}) ---\n${r.text}`,
                 )
-                .join("\n\n");
+                .join('\n\n');
 
             const contextSection = contextBlocks
                 ? `\n--- BEGIN PROJECT CONTEXT ---\nThe following symbols were retrieved from the project's codebase via vector search. These are REAL, EXISTING implementations. You MUST use them as your primary reference when generating code:\n\n${contextBlocks}\n--- END PROJECT CONTEXT ---`

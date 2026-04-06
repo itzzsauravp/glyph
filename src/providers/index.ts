@@ -4,24 +4,24 @@
  * to the correct provider instance.
  */
 
+export { AnthropicProvider } from './anthropic.provider';
 export { BaseLLMProvider } from './base.provider';
-export { OllamaProvider } from './ollama.provider';
-export { LmStudioProvider } from './lmstudio.provider';
 export { GoogleProvider } from './google.provider';
 export { GroqProvider } from './groq.provider';
-export { OpenRouterProvider } from './openrouter.provider';
+export { LmStudioProvider } from './lmstudio.provider';
+export { OllamaProvider } from './ollama.provider';
 export { OpenAIProvider } from './openai.provider';
-export { AnthropicProvider } from './anthropic.provider';
+export { OpenRouterProvider } from './openrouter.provider';
 
 import { ProviderType } from '../types/llm.types';
+import { AnthropicProvider } from './anthropic.provider';
 import type { BaseLLMProvider } from './base.provider';
-import { OllamaProvider } from './ollama.provider';
-import { LmStudioProvider } from './lmstudio.provider';
 import { GoogleProvider } from './google.provider';
 import { GroqProvider } from './groq.provider';
-import { OpenRouterProvider } from './openrouter.provider';
+import { LmStudioProvider } from './lmstudio.provider';
+import { OllamaProvider } from './ollama.provider';
 import { OpenAIProvider } from './openai.provider';
-import { AnthropicProvider } from './anthropic.provider';
+import { OpenRouterProvider } from './openrouter.provider';
 
 /**
  * Resolves the correct provider instance based on the active config values.
@@ -61,7 +61,9 @@ export function resolveProvider(
 
         default:
             // Fallback to Ollama for unrecognised types
-            console.warn(`[ProviderResolver] Unknown providerType "${providerType}", falling back to Ollama.`);
+            console.warn(
+                `[ProviderResolver] Unknown providerType "${providerType}", falling back to Ollama.`,
+            );
             return new OllamaProvider(baseUrl);
     }
 }

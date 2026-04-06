@@ -1,74 +1,78 @@
 import * as vscode from 'vscode';
 import type GlyphConfig from '../config/glyph.config';
+import { resolveProvider } from '../providers';
 
+/**
+ * Health-check service.
+ *
+ * Instead of hard-coding `/api/tags` (Ollama-only), it resolves the
+ * active provider and delegates `isReachable()` and `getModels()` to it.
+ */
 export default class LLMHealth {
     constructor(private readonly glyphConfig: GlyphConfig) {}
 
-    private get baseUrl() {
-        return this.glyphConfig.getExtensionConfig().endpoint;
+    private async getActiveProvider() {
+        const config = this.glyphConfig.getExtensionConfig();
+        const apiKey = await this.glyphConfig.getApiKey(config.providerType);
+        return resolveProvider(config.providerType, config.endpoint, apiKey);
     }
 
     public async preflight() {
-        const isInstalled = await this.isReachable();
+        const provider = await this.getActiveProvider();
+
+        const config = this.glyphConfig.getExtensionConfig();
+        const isInstalled = await provider.isReachable(config.model);
+
         if (!isInstalled) {
             vscode.window.showErrorMessage(
-                'LLM service not reachable. Please make sure it is installed and running.',
+                `${provider.displayName} is not reachable. Please make sure it is running or your API key is valid.`,
             );
-            console.error('Local LLM service not reachable');
+            console.error(`[LLMHealth] ${provider.displayName} not reachable`);
             return false;
         }
-        if (!(await this.getModels()).length) {
+
+        const models = await provider.getModels();
+        if (!models.length) {
             vscode.window.showErrorMessage(
-                'Glyph requires at least one model to be installed. Please install a recommended model for your spec',
+                'Glyph requires at least one model. Please install or configure a model.',
             );
-            console.error(
-                'Glyph requires at least one model to be installed. Please install a recommended model for your spec',
-            );
+            console.error('[LLMHealth] No models available');
             return false;
         }
+
         return true;
     }
 
-    async isReachable() {
+    async isReachable(): Promise<boolean> {
         try {
-            const response = await fetch(`${this.baseUrl}/api/tags`);
-            return response.ok;
-        } catch (_error) {
-            console.error('Local LLM service not reachable');
+            const provider = await this.getActiveProvider();
+            const config = this.glyphConfig.getExtensionConfig();
+            return await provider.isReachable(config.model);
+        } catch {
             return false;
         }
     }
 
-    async getModels(): Promise<Array<string>> {
+    async getModels(): Promise<string[]> {
         try {
-            const response = await fetch(`${this.baseUrl}/api/tags`);
-            if (!response.ok) {
-                return [];
-            }
-
-            const data = (await response.json()) as { models: { name: string }[] };
-            return data.models.map((m) => m.name);
-        } catch (_err) {
+            const provider = await this.getActiveProvider();
+            return await provider.getModels();
+        } catch {
             return [];
         }
     }
 
     async getModelsForPicker(): Promise<vscode.QuickPickItem[]> {
         try {
-            const response = await fetch(`${this.baseUrl}/api/tags`);
-            if (!response.ok) {
-                return [];
-            }
-
-            const data = (await response.json()) as { models: { name: string }[] };
-
-            return data.models.map((m: any) => ({
-                label: m.name,
-                description: `${m.details.parameter_size} | ${m.details.quantization_level}`,
-                detail: `Size: ${(m.size / 1024 ** 3).toFixed(2)} GB`,
+            const provider = await this.getActiveProvider();
+            const items = await provider.getModelsForPicker();
+            return items.map((item) => ({
+                label: item.label,
+                description: item.description,
+                detail: item.detail,
                 alwaysShow: true,
             }));
-        } catch (_err) {
+        } catch {
             return [];
         }
     }

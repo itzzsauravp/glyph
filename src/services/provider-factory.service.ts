@@ -8,11 +8,7 @@ import { type BaseLLMProvider, resolveProvider } from '../providers';
  * in the individual provider classes under `src/providers/`.
  */
 export const ProviderFactory = {
-    getProvider(
-        providerType: string,
-        baseUrl: string,
-        apiKey?: string,
-    ): BaseLLMProvider {
+    getProvider(providerType: string, baseUrl: string, apiKey?: string): BaseLLMProvider {
         return resolveProvider(providerType, baseUrl, apiKey);
     },
 

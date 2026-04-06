@@ -2,10 +2,6 @@ import * as vscode from 'vscode';
 import BaseCommand from './base.command';
 
 export default class TestCommand extends BaseCommand {
-    constructor() {
-        super();
-    }
-
     public id: string = 'glyph.test';
 
     public action = async (): Promise<void> => {

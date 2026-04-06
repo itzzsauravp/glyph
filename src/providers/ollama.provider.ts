@@ -71,7 +71,7 @@ export class OllamaProvider extends BaseLLMProvider {
             };
             return data.models.map((m) => ({
                 label: m.name,
-                description: `${m.details?.parameter_size ?? ""} | ${m.details?.quantization_level ?? ""}`,
+                description: `${m.details?.parameter_size ?? ''} | ${m.details?.quantization_level ?? ''}`,
                 detail: `Size: ${(m.size / 1024 ** 3).toFixed(2)} GB`,
             }));
         } catch {

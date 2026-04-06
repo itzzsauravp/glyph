@@ -70,9 +70,7 @@ export default class ManageApiKeys extends BaseCommand {
         }
 
         await this.context.secrets.delete(entry.secretKey);
-        vscode.window.showInformationMessage(
-            `API key for "${entry.label}" has been removed.`,
-        );
+        vscode.window.showInformationMessage(`API key for "${entry.label}" has been removed.`);
     };
 
     private async deleteAllKeys(): Promise<void> {

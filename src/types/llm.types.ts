@@ -13,7 +13,7 @@ export enum ProviderType {
     OpenRouter = 'OpenRouter',
     OpenAI = 'OpenAI',
     Anthropic = 'Anthropic',
-    Google = 'Google'
+    Google = 'Google',
 }
 
 export interface CloudRegisteryEntry {

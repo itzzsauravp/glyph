@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
+import Brainstrom from '../commands/brainstrom.command';
 import { CloudProviderOrchestrator } from '../commands/cloud-provider-orchestrator';
 import SetupCustomModel from '../commands/custom-model.command';
 import GenerateCode from '../commands/generate-code.command';
 import GenerateDocs from '../commands/generate-docs.command';
 import ManageApiKeys from '../commands/manage-keys.command';
 import ModelSelect from '../commands/model-select.command';
+import ReloadConfig from '../commands/reload-config.command';
 import TestCommand from '../commands/test.command';
 import GlyphConfig from '../config/glyph.config';
 import CommandManager from '../services/command-manager.service';
@@ -45,7 +47,7 @@ export default class GlyphApp {
     }
 
     public async initialize(): Promise<void> {
-        this.glyphConfig = new GlyphConfig();
+        this.glyphConfig = new GlyphConfig(this.context);
         this.llmHealth = new LLMHealth(this.glyphConfig);
 
         this.vectorDatabase = await VectorDatabaseService.connectGlobalDatabase();
@@ -107,6 +109,10 @@ export default class GlyphApp {
             new SetupCustomModel(this.context, this.glyphConfig, this.statusBar),
         );
         this.commandManager.register(new ManageApiKeys(this.context));
+        this.commandManager.register(
+            new Brainstrom(this.context, this.llmService, this.repositoryIndexer),
+        );
+        this.commandManager.register(new ReloadConfig(this.glyphConfig));
     }
 
     private startHealthPolling(): void {
