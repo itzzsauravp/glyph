@@ -17,14 +17,18 @@ export const CLOUD_REGISTERY: ICloudRegistery = {
         generateUrl: '/v1/chat/completions',
         helpLink: 'https://console.groq.com/keys',
     },
+    Anthropic: {
+        models: ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
+        baseUrl: 'https://api.anthropic.com',
+        chatUrl: '/v1/messages',
+        completionsUrl: '/v1/messages',
+        generateUrl: '/v1/messages',
+        helpLink: 'https://console.anthropic.com/settings/keys',
+    },
     OpenRouter: {
         models: [
-            'google/gemini-2.0-flash-001:free',
-            'qwen/qwen3-coder:free',
-            'meta-llama/llama-3.3-70b-instruct:free',
-            'mistralai/mistral-7b-instruct:free',
-            'microsoft/phi-3-medium-128k-instruct:free',
-            'openchat/openchat-7b:free',
+            "stepfun/step-3.5-flash:free",
+            "nvidia/nemotron-3-super-120b-a12b:free"
         ],
         baseUrl: 'https://openrouter.ai/api/v1',
         chatUrl: '/chat/completions',
