@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glyph Brainstorm</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/vs2015.min.css">
+    <link rel="stylesheet" href="{{styleUri}}">
+</head>
+<body>
+    <div class="app-wrapper hero-mode" id="app-wrapper">
+        <!-- Hero header (only visible in empty state) -->
+        <div class="hero-header" id="hero-header">
+            <div class="hero-logo-container">
+                <svg class="hero-logo-svg" viewBox="0 0 100 120">
+                    <!-- Diamond Outer -->
+                    <path d="M50 5 L95 60 L50 115 L5 60 Z" />
+                    <!-- Inner Glyph Lines ( / ) -->
+                    <path d="M45 40 L55 80" stroke-width="2" stroke-linecap="round" />
+                    <path d="M35 50 L30 60 L35 70" stroke-width="2.5" />
+                    <path d="M65 50 L70 60 L65 70" stroke-width="2.5" />
+                    <!-- Subtle Glow Center -->
+                    <circle cx="50" cy="60" r="2" fill="#9b6dff" opacity="0.6">
+                        <animate attributeName="r" values="1.5;2.5;1.5" dur="3s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.3;0.8;0.3" dur="3s" repeatCount="indefinite" />
+                    </circle>
+                </svg>
+            </div>
+            <div class="hero-title">Glyph</div>
+            <div class="hero-subtitle">Created by Saurav Parajulee</div>
+        </div>
+
+        <!-- Chat messages area -->
+        <div class="chat-container" id="chat-container"></div>
+
+        <!-- Thinking indicator -->
+        <div class="thinking-container" id="thinking-indicator">
+            <div class="thinking-dots">
+                <span></span><span></span><span></span>
+            </div>
+            <span><span id="thinking-name">Glyph</span> is thinking…</span>
+        </div>
+
+        <!-- Unified input area -->
+        <div class="input-area" id="input-area">
+            <div class="input-card" id="input-card">
+                <div class="error-message" id="error-display"></div>
+                <textarea id="prompt-input" rows="2" placeholder="Ask Glyph anything… (Shift+Enter for newline)"></textarea>
+                <div class="controls-row">
+                    <div class="controls-left">
+                        <div class="custom-dropdown" id="model-dropdown" title="Select model">
+                            <div class="dropdown-trigger" id="dropdown-trigger">
+                                <span class="selected-text" id="selected-model-name">Select Model</span>
+                                <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </div>
+                            <div class="dropdown-options-list" id="dropdown-options-list">
+                                <!-- Dynamic options list -->
+                            </div>
+                        </div>
+                        <div class="codebase-pill" id="codebase-toggle" title="Enable codebase-aware context">
+                            <span class="codebase-dot"></span>
+                            <span>Codebase</span>
+                        </div>
+                        <button type="button" class="new-chat-btn" id="clear-btn" title="Start a new conversation">New Chat</button>
+                    </div>
+                    <div class="controls-right">
+                        <button type="button" class="send-btn" id="send-btn" title="Send message">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="19" x2="12" y2="5"></line>
+                                <polyline points="5 12 12 5 19 12"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{scriptUri}}"></script>
+</body>
+</html>
