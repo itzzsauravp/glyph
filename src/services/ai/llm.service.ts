@@ -3,22 +3,19 @@ import type * as lancedb from '@lancedb/lancedb';
 import { embed, generateText, streamText } from 'ai';
 import * as vscode from 'vscode';
 
-import type GlyphConfig from '../config/glyph.config';
-import BaseLLMService from './base-llm.service';
-import { ProviderFactory } from './provider-factory.service';
-import type RepositoryIndexerService from './repo-indexer.service';
+import type GlyphConfig from '../../config/glyph.config';
+import { resolveAdapter } from '../../adapters';
+import type { RepositoryIndexerService } from '../index';
 
 /**
  * Service that interfaces with large language models through the Vercel AI SDK.
- * Supports Cloud (OpenRouter, OpenAI, etc.) and Local (Ollama, LM Studio) models via unify provider abstractions.
  */
-export default class LLMService extends BaseLLMService {
+export default class LLMService {
+    
     constructor(
         public readonly glyphConfig: GlyphConfig,
         public readonly workspaceTable: lancedb.Table,
-    ) {
-        super();
-    }
+    ) {}
 
     private extractCode(text: string): string {
         const match = text.match(/```[a-zA-Z]*\s*\n?([\s\S]*?)```/);
@@ -51,37 +48,42 @@ export default class LLMService extends BaseLLMService {
             throw new Error('No target model configured in Glyph settings.');
         }
 
-        return ProviderFactory.createModel(
-            config.providerType,
-            config.model,
-            config.endpoint,
-            apiKey,
-        );
+        const adapter = resolveAdapter(config.providerType, config.endpoint, apiKey);
+        return adapter.createModel(config.model);
     }
 
     private async getEmbeddingModel() {
         const config = this.glyphConfig.getExtensionConfig();
         const apiKey = await this.glyphConfig.getApiKey(config.providerType);
 
-        if (!config.embeddingModel) {
+        const adapter = resolveAdapter(config.providerType, config.endpoint, apiKey);
+        
+        let embeddingModelName = config.embeddingModel;
+        
+        // Hardcode fallback to nomic-embed-text for local if missing
+        if (!embeddingModelName && adapter.isLocal) {
+            embeddingModelName = 'nomic-embed-text';
+        } else if (!embeddingModelName) {
             throw new Error('No embedding model configured in Glyph settings.');
         }
 
-        return ProviderFactory.createEmbeddingModel(
-            config.providerType,
-            config.embeddingModel,
-            config.endpoint,
-            apiKey,
-        );
+        return adapter.createEmbeddingModel(embeddingModelName);
     }
 
     private handleError(error: unknown): never {
         let message = 'An unknown error occurred during LLM operation.';
         if (error instanceof Error) {
             message = error.message;
+
+            // Handle Vercel AI SDK specific errors
+            if (error.name === 'AI_NoOutputGeneratedError') {
+                message = 'The AI model returned an empty response. This can happen if the prompt was blocked or the model failed to generate text.';
+            } else if (error.name === 'AI_APICallError') {
+                message = `API Call Failed: ${error.message} (Check your model configuration and API keys).`;
+            }
         }
 
-        console.error('[LLMService Error]', error);
+        console.error('[LLMService]', message, error instanceof Error ? error.stack : undefined);
 
         if (message.includes('fetch failed') || message.includes('ECONNREFUSED')) {
             throw new Error(
@@ -91,6 +93,8 @@ export default class LLMService extends BaseLLMService {
             throw new Error('Invalid API Key: Please check your provider API key in settings.');
         } else if (message.includes('404')) {
             throw new Error('Model Not Found: Ensure the model name exists on your provider.');
+        } else if (message.includes('400')) {
+            throw new Error(`Bad Request (400): ${message}. This often happens if the model name or parameters are invalid for the provider.`);
         }
 
         throw new Error(`LLM Error: ${message}`);
@@ -135,11 +139,10 @@ export default class LLMService extends BaseLLMService {
     public async generateEmbeddings(content: string | Array<string>): Promise<number[]> {
         try {
             const embeddingModel = await this.getEmbeddingModel();
-
-            // Standardize into array of contents
             const contents = Array.isArray(content) ? content : [content];
 
-            // For a single vector return
+            console.log(`[LLMService] Generating embeddings for ${contents.length} blocks...`);
+
             const result = await embed({
                 model: embeddingModel,
                 value: contents.join('\n'),
@@ -167,12 +170,15 @@ RULES:
 6. Do not include any backticks.
 `;
 
+            console.log(`[LLMService] Generating code with instruction: "${prompt.substring(0, 50)}..."`);
+
             const { text } = await generateText({
                 model,
                 system: systemPrompt,
                 prompt: `Instructions: ${prompt}\n\nCode block to modify:\n${code}`,
             });
 
+            console.log('[LLMService] Code generation successful.');
             return this.stripImports(this.extractCode(text));
         } catch (error) {
             this.handleError(error);
@@ -421,18 +427,27 @@ ${contextSection}
     ): Promise<string> {
         try {
             const model = await this.getLanguageModel();
+            console.log('[LLMService] Starting chat stream...');
 
             const { textStream, text } = await streamText({
                 model,
                 messages,
             });
 
+            let chunkCount = 0;
             for await (const chunk of textStream) {
+                chunkCount++;
                 onChunk(chunk);
             }
 
-            // Return the full awaited string once the stream completes.
-            return await text;
+            console.log(`[LLMService] Chat stream completed with ${chunkCount} chunks.`);
+
+            const fullText = await text;
+            if (!fullText && chunkCount === 0) {
+                console.warn('[LLMService] Stream finished but no text was generated.');
+            }
+
+            return fullText;
         } catch (error) {
             this.handleError(error);
         }

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type BaseCommand from '../commands/base.command';
+import type { BaseCommand } from '../../commands';
 
 export default class CommandManager {
     constructor(private readonly context: vscode.ExtensionContext) {}

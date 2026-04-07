@@ -1,5 +1,9 @@
 import * as vscode from 'vscode';
+import type GlyphConfig from '../../config/glyph.config';
 
+/**
+ * Possible states displayed in the status bar.
+ */
 export enum StatusState {
     Idle = 'Idle',
     GeneratingCode = 'Generating Code',
@@ -7,13 +11,19 @@ export enum StatusState {
     Offline = 'Offline',
 }
 
+/**
+ * Manages the Glyph status bar item.
+ *
+ * Subscribes to {@link GlyphConfig.onDidChange} so that model and provider
+ * changes are reflected immediately without manual `setModel()` calls.
+ */
 export default class StatusBarService {
     private statusBarItem: vscode.StatusBarItem;
     private currentModel: string = '';
     private currentState: StatusState = StatusState.Idle;
     private isHealthy: boolean = true;
 
-    constructor(context: vscode.ExtensionContext) {
+    constructor(context: vscode.ExtensionContext, glyphConfig: GlyphConfig) {
         this.statusBarItem = vscode.window.createStatusBarItem(
             vscode.StatusBarAlignment.Right,
             100,
@@ -22,19 +32,35 @@ export default class StatusBarService {
         context.subscriptions.push(this.statusBarItem);
         this.statusBarItem.show();
         this.update();
+
+        // Auto-sync when config changes.
+        glyphConfig.onDidChange((e) => {
+            if (e.key === 'model' && typeof e.value === 'string') {
+                this.setModel(e.value);
+            }
+        });
     }
 
-    public setModel(model: string) {
+    /**
+     * Sets the displayed model name.
+     */
+    public setModel(model: string): void {
         this.currentModel = model;
         this.update();
     }
 
-    public setState(state: StatusState) {
+    /**
+     * Sets the current activity state (Idle, Generating, etc.).
+     */
+    public setState(state: StatusState): void {
         this.currentState = state;
         this.update();
     }
 
-    public setHealthy(healthy: boolean) {
+    /**
+     * Updates the health indicator. Offline state is shown when unhealthy.
+     */
+    public setHealthy(healthy: boolean): void {
         if (!healthy) {
             this.currentState = StatusState.Offline;
         } else if (this.currentState === StatusState.Offline) {
@@ -44,15 +70,18 @@ export default class StatusBarService {
         this.update();
     }
 
-    private update() {
+    /**
+     * Refreshes the status bar text and tooltip based on current state.
+     */
+    private update(): void {
         let icon = '$(check)';
         let text = `Glyph: ${this.currentModel || 'No Model'}`;
-        let tooltip = 'Ollama is healthy';
+        let tooltip = 'Glyph is healthy';
 
         if (!this.isHealthy) {
             icon = '$(circle-slash)';
             text = 'Glyph: Offline';
-            tooltip = 'Ollama unreachable';
+            tooltip = 'AI Service unreachable';
         } else if (
             this.currentState === StatusState.GeneratingCode ||
             this.currentState === StatusState.GeneratingDocs
