@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
-import type GlyphConfig from '../config/glyph.config';
-import { CLOUD_REGISTERY } from '../constants';
-import { resolveProvider } from '../providers';
-import type StatusBarService from '../services/status-bar.service';
-import type { ICloudRegistery } from '../types/llm.types';
-import BaseCommand from './base.command';
+import type GlyphConfig from '../../config/glyph.config';
+import { CLOUD_REGISTERY } from '../../constants';
+import { resolveAdapter } from '../../adapters';
+import type { StatusBarService } from '../../services';
+import type { ICloudRegistery } from '../../types/llm.types';
+import BaseCommand from '../core/base.command';
 
 export class CloudProviderOrchestrator extends BaseCommand {
     constructor(
@@ -85,8 +85,8 @@ export class CloudProviderOrchestrator extends BaseCommand {
     private async verifyConnection(provider: string, model: string, key: string): Promise<string> {
         try {
             const config = CLOUD_REGISTERY[provider];
-            const providerInstance = resolveProvider(provider, config.baseUrl, key);
-            const reachable = await providerInstance.isReachable(model);
+            const adapterInstance = resolveAdapter(provider, config.baseUrl, key);
+            const reachable = await adapterInstance.isReachable(model);
 
             if (reachable) {
                 await this.glyphConfig.updateModel(model);

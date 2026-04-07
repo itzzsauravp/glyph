@@ -1,5 +1,5 @@
-import type GlyphConfig from '../config/glyph.config';
-import BaseCommand from './base.command';
+import type GlyphConfig from '../../config/glyph.config';
+import BaseCommand from '../core/base.command';
 
 export default class ReloadConfig extends BaseCommand {
     constructor(private readonly glyphConfig: GlyphConfig) {

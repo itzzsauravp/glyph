@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { CLOUD_REGISTERY } from '../constants';
-import BaseCommand from './base.command';
+import { CLOUD_REGISTERY } from '../../constants';
+import BaseCommand from '../core/base.command';
 
 /**
  * Lets the user inspect and delete stored API keys.
