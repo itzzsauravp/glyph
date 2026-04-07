@@ -1,37 +1,38 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import type { EmbeddingModel, LanguageModel } from 'ai';
 import { CLOUD_REGISTERY } from '../constants';
-import { BaseLLMProvider } from './base.provider';
+import { BaseLLMAdapter } from './base-llm.adapter';
 
 /**
- * Groq — cloud provider (OpenAI-compatible API).
+ * OpenRouter — cloud adapter (OpenAI-compatible API).
  *
  * Health:  1-token chat completion via the registry's chatUrl.
- * Models:  Static list from CLOUD_REGISTERY['Groq'].
- * SDK:     createOpenAI({ baseURL: <groq-base>/v1 })
+ * Models:  Static list from CLOUD_REGISTERY['OpenRouter'].
  */
-export class GroqProvider extends BaseLLMProvider {
-    readonly displayName = 'Groq';
+export class OpenRouterAdapter extends BaseLLMAdapter {
+    readonly displayName = 'OpenRouter';
     readonly isLocal = false;
 
-    private readonly registry = CLOUD_REGISTERY.Groq;
+    private readonly registry = CLOUD_REGISTERY.OpenRouter;
 
     constructor(apiKey: string) {
-        super(apiKey, CLOUD_REGISTERY.Groq.baseUrl);
+        super(apiKey, CLOUD_REGISTERY.OpenRouter.baseUrl);
     }
 
     createModel(modelName: string): LanguageModel {
-        return createOpenAI({
-            baseURL: `${this.baseUrl}/v1`,
+        const openai = createOpenAI({
+            baseURL: this.baseUrl,
             apiKey: this.apiKey,
-        })(modelName);
+        });
+        return openai.chat(modelName);
     }
 
     createEmbeddingModel(embeddingModelName: string): EmbeddingModel {
-        return createOpenAI({
-            baseURL: `${this.baseUrl}/v1`,
+        const openai = createOpenAI({
+            baseURL: this.baseUrl,
             apiKey: this.apiKey,
-        }).textEmbeddingModel(embeddingModelName);
+        });
+        return openai.embedding(embeddingModelName);
     }
 
     async isReachable(modelName?: string): Promise<boolean> {

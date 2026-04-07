@@ -1,37 +1,31 @@
-import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import type { EmbeddingModel, LanguageModel } from 'ai';
 import { CLOUD_REGISTERY } from '../constants';
-import { BaseLLMProvider } from './base.provider';
+import { BaseLLMAdapter } from './base-llm.adapter';
 
 /**
- * OpenRouter — cloud provider (OpenAI-compatible API).
- *
- * Health:  1-token chat completion via the registry's chatUrl.
- * Models:  Static list from CLOUD_REGISTERY['OpenRouter'].
- * SDK:     createOpenAI({ baseURL: 'https://openrouter.ai/api/v1' })
+ * Google / Gemini — cloud adapter.
  */
-export class OpenRouterProvider extends BaseLLMProvider {
-    readonly displayName = 'OpenRouter';
+export class GoogleAdapter extends BaseLLMAdapter {
+    readonly displayName = 'Gemini';
     readonly isLocal = false;
 
-    private readonly registry = CLOUD_REGISTERY.OpenRouter;
+    private readonly registry = CLOUD_REGISTERY.Gemini;
 
     constructor(apiKey: string) {
-        super(apiKey, CLOUD_REGISTERY.OpenRouter.baseUrl);
+        super(apiKey, CLOUD_REGISTERY.Gemini.baseUrl);
     }
 
     createModel(modelName: string): LanguageModel {
-        return createOpenAI({
-            baseURL: this.baseUrl,
+        return createGoogleGenerativeAI({
             apiKey: this.apiKey,
         })(modelName);
     }
 
     createEmbeddingModel(embeddingModelName: string): EmbeddingModel {
-        return createOpenAI({
-            baseURL: this.baseUrl,
+        return createGoogleGenerativeAI({
             apiKey: this.apiKey,
-        }).textEmbeddingModel(embeddingModelName);
+        }).embeddingModel(embeddingModelName);
     }
 
     async isReachable(modelName?: string): Promise<boolean> {

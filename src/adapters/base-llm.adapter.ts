@@ -1,22 +1,22 @@
 import type { EmbeddingModel, LanguageModel } from 'ai';
 
 /**
- * Abstract base class for all LLM providers.
+ * Abstract base class for all LLM adapters.
  *
- * Each concrete provider (Ollama, Gemini, Groq, etc.) implements
+ * Each concrete adapter implements
  * its own model creation, health-checking, and model-listing logic,
  * encapsulating the provider-specific URL paths and API quirks.
  */
-export abstract class BaseLLMProvider {
+export abstract class BaseLLMAdapter {
     constructor(
         protected readonly apiKey: string,
         protected readonly baseUrl: string,
     ) {}
 
-    /** Human-readable provider name (e.g. "Ollama", "Gemini"). */
+    /** Human-readable provider name (e.g. "OpenAI", "Gemini", "Ollama"). */
     abstract readonly displayName: string;
 
-    /** Whether this provider runs locally (affects health-check strategy). */
+    /** Whether this adapter connects to a local LLM API. */
     abstract readonly isLocal: boolean;
 
     /**
@@ -32,7 +32,6 @@ export abstract class BaseLLMProvider {
 
     /**
      * Return `true` when the provider is reachable.
-     * Local providers hit a health endpoint; cloud providers do a 1-token ping.
      */
     abstract isReachable(modelName?: string): Promise<boolean>;
 

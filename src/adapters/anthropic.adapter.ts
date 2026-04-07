@@ -1,17 +1,13 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
 import type { EmbeddingModel, LanguageModel } from 'ai';
-import { BaseLLMProvider } from './base.provider';
+import { BaseLLMAdapter } from './base-llm.adapter';
 
 /**
- * Anthropic — cloud provider (native SDK).
- *
- * Health:  1-token message via the Messages API.
- * Models:  Static shortlist (Anthropic doesn't expose a listing endpoint).
- * SDK:     createAnthropic({ apiKey })
+ * Anthropic — cloud adapter.
  *
  * NOTE: Anthropic does NOT support text embeddings natively.
  */
-export class AnthropicProvider extends BaseLLMProvider {
+export class AnthropicAdapter extends BaseLLMAdapter {
     readonly displayName = 'Anthropic';
     readonly isLocal = false;
 
@@ -39,7 +35,7 @@ export class AnthropicProvider extends BaseLLMProvider {
 
     async isReachable(modelName?: string): Promise<boolean> {
         try {
-            const model = modelName || AnthropicProvider.KNOWN_MODELS[0];
+            const model = modelName || AnthropicAdapter.KNOWN_MODELS[0];
             const res = await fetch(`${this.baseUrl}/v1/messages`, {
                 method: 'POST',
                 headers: {
@@ -60,6 +56,6 @@ export class AnthropicProvider extends BaseLLMProvider {
     }
 
     async getModels(): Promise<string[]> {
-        return AnthropicProvider.KNOWN_MODELS;
+        return AnthropicAdapter.KNOWN_MODELS;
     }
 }
