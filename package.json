@@ -4,7 +4,7 @@
     "displayName": "Glyph: Micro AI Helper",
     "publisher": "sauravparajulee",
     "description": "A privacy-first, backend-agnostic AI assistant for code generation, documentation, and brainstorming.",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "icon": "images/icon.png",
     "repository": {
         "type": "git",
