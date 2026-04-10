@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>system_error</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --text: #555555;
+            --accent: #ff3333;
+            --font: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .container {
+            max-width: 400px;
+            text-align: left;
+            padding: 20px;
+            border-left: 1px solid #222;
+        }
+
+        .status-code {
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            font-weight: normal;
+            margin: 0 0 15px 0;
+            color: #eee;
+        }
+
+        p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .glyph-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 10px;
+            opacity: 0.3;
+        }
+
+        .box {
+            width: 30px;
+            height: 30px;
+            border: 1px solid var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 10px;
+        }
+
+        .retry-btn {
+            display: inline-block;
+            margin-top: 30px;
+            color: #eee;
+            text-decoration: none;
+            border: 1px solid #333;
+            padding: 8px 15px;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        .retry-btn:hover {
+            background: #eee;
+            color: #000;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 15px;
+            background: var(--accent);
+            animation: blink 1s infinite;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="status-code">ERR_GLYPH_LOAD_FAILED</div>
+    <h1>critical_failure<span class="cursor"></span></h1>
+    
+    <p>
+        the chat interface could not initialize. 
+        requested glyph sets were corrupted or missing from the local path.
+    </p>
+
+    <div class="glyph-grid">
+        <div class="box">?</div>
+        <div class="box">☒</div>
+        <div class="box">?</div>
+        <div class="box">☒</div>
+        <div class="box">?</div>
+        <div class="box">?</div>
+        <div class="box">☒</div>
+        <div class="box">?</div>
+    </div>
+
+</div>
+
+</body>
+</html>

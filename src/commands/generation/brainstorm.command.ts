@@ -417,6 +417,11 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
 
         const webview = this.currentPanel?.webview;
 
+        if (!webview) {
+            const errorHtmlPath = path.join(webviewDir, 'error.html');
+            return fs.readFileSync(errorHtmlPath, 'utf8');
+        }
+
         const styleUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewDir, 'style.css')));
         const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewDir, 'script.js')));
 
@@ -440,7 +445,7 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                 if (lang && hljs.getLanguage(lang)) {
                     try {
                         return hljs.highlight(str, { language: lang }).value;
-                    } catch (__) {}
+                    } catch (__) { }
                 }
                 return '';
             },

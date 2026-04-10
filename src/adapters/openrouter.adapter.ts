@@ -36,17 +36,21 @@ export class OpenRouterAdapter extends BaseLLMAdapter {
     }
 
     async isReachable(_modelName?: string): Promise<boolean> {
-        try {
-            // Lightweight check — /models endpoint validates auth without costing tokens
-            const res = await fetch(`${this.baseUrl}/models`, {
-                headers: {
-                    Authorization: `Bearer ${this.apiKey}`,
-                },
-            });
-            return res.ok || res.status === 429;
-        } catch {
-            return false;
+        // Lightweight check — /models endpoint validates connectivity
+        const res = await fetch(`${this.baseUrl}/models`, {
+            headers: {
+                Authorization: `Bearer ${this.apiKey}`,
+                'HTTP-Referer': 'https://github.com/itzzsauravp/glyph',
+                'X-Title': 'Glyph',
+            },
+        });
+
+        if (res.ok || res.status === 429) {
+            return true;
         }
+
+        const body = await res.text().catch(() => '');
+        throw new Error(`OpenRouter returned ${res.status}: ${body.slice(0, 200)}`);
     }
 
     async getModels(): Promise<string[]> {

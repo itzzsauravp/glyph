@@ -29,14 +29,16 @@ export class GoogleAdapter extends BaseLLMAdapter {
     }
 
     async isReachable(_modelName?: string): Promise<boolean> {
-        try {
-            // Lightweight check — list models with API key as query param
-            const url = `${this.baseUrl}/v1beta/models?key=${this.apiKey}`;
-            const res = await fetch(url);
-            return res.ok || res.status === 429;
-        } catch {
-            return false;
+        // Lightweight check — list models with API key as query param
+        const url = `${this.baseUrl}/v1beta/models?key=${this.apiKey}`;
+        const res = await fetch(url);
+
+        if (res.ok || res.status === 429) {
+            return true;
         }
+
+        const body = await res.text().catch(() => '');
+        throw new Error(`Gemini returned ${res.status}: ${body.slice(0, 200)}`);
     }
 
     async getModels(): Promise<string[]> {

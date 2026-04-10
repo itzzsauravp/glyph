@@ -60,19 +60,20 @@ export class CloudProviderOrchestrator extends BaseCommand {
                 cancellable: false,
             },
             async (_progress) => {
-                const statusInfo = await this.verifyConnection(
+                const result = await this.verifyConnection(
                     selectedProvider,
                     selectedModel,
                     apiKey,
                 );
 
-                if (statusInfo) {
-                    vscode.window.showInformationMessage(statusInfo);
+                if (result.success) {
+                    vscode.window.showInformationMessage(result.message);
                 } else {
-                    vscode.window.showErrorMessage(
-                        `Failed to connect to ${selectedProvider}. Please check your API key.`,
-                    );
-                    await this.context.secrets.delete(secretKey);
+                    vscode.window.showErrorMessage(`Glyph: ${result.message}`);
+                    // Only delete the key on explicit auth failures
+                    if (result.isAuthError) {
+                        await this.context.secrets.delete(secretKey);
+                    }
                 }
             },
         );
@@ -80,9 +81,13 @@ export class CloudProviderOrchestrator extends BaseCommand {
 
     /**
      * Verifies the connection by delegating to the provider's own `isReachable()`.
-     * This ensures the correct endpoint paths and auth headers are used per-provider.
+     * Returns a structured result so the caller can show actionable messages.
      */
-    private async verifyConnection(provider: string, model: string, key: string): Promise<string> {
+    private async verifyConnection(
+        provider: string,
+        model: string,
+        key: string,
+    ): Promise<{ success: boolean; message: string; isAuthError?: boolean }> {
         try {
             const config = CLOUD_REGISTERY[provider];
             const adapterInstance = resolveAdapter(provider, config.baseUrl, key);
@@ -95,16 +100,25 @@ export class CloudProviderOrchestrator extends BaseCommand {
                 await this.glyphConfig.addRegisteredModel(provider, model, config.baseUrl);
 
                 this.statusBar.setModel(model);
-                return `Glyph successfully connected to ${model}`;
-            } else {
-                return '';
+                return { success: true, message: `Successfully connected to ${model}` };
             }
+
+            return {
+                success: false,
+                message: `Could not verify connection to ${provider}. The endpoint may be temporarily unavailable.`,
+            };
         } catch (error) {
-            console.error(
-                '[GlyphApp]: CloudProviderOrchestrator connection verification error',
-                error,
-            );
-            return 'Unexpected error occurred, please check the logs';
+            const msg = error instanceof Error ? error.message : String(error);
+            const isAuthError = msg.includes('401') || msg.includes('403') || msg.includes('Unauthorized');
+
+            console.error('[CloudProviderOrchestrator]', msg);
+
+            return {
+                success: false,
+                message: `${provider} connection failed: ${msg}`,
+                isAuthError,
+            };
         }
     }
 }
+
