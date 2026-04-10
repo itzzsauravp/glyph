@@ -18,7 +18,11 @@ export const CLOUD_REGISTERY: ICloudRegistery = {
         helpLink: 'https://console.groq.com/keys',
     },
     Anthropic: {
-        models: ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
+        models: [
+            'claude-3-7-sonnet-20250219',
+            'claude-3-5-sonnet-20241022',
+            'claude-3-5-haiku-20241022',
+        ],
         baseUrl: 'https://api.anthropic.com',
         chatUrl: '/v1/messages',
         completionsUrl: '/v1/messages',
@@ -27,8 +31,9 @@ export const CLOUD_REGISTERY: ICloudRegistery = {
     },
     OpenRouter: {
         models: [
-            "stepfun/step-3.5-flash:free",
-            "nvidia/nemotron-3-super-120b-a12b:free"
+            'nvidia/nemotron-3-super-120b-a12b:free',
+            'arcee-ai/trinity-large-preview:free',
+            'openai/gpt-oss-120b:free',
         ],
         baseUrl: 'https://openrouter.ai/api/v1',
         chatUrl: '/chat/completions',

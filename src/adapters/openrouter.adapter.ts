@@ -35,21 +35,13 @@ export class OpenRouterAdapter extends BaseLLMAdapter {
         return openai.embedding(embeddingModelName);
     }
 
-    async isReachable(modelName?: string): Promise<boolean> {
+    async isReachable(_modelName?: string): Promise<boolean> {
         try {
-            const model = modelName || this.registry.models[0];
-            const url = `${this.baseUrl}${this.registry.chatUrl}`;
-            const res = await fetch(url, {
-                method: 'POST',
+            // Lightweight check — /models endpoint validates auth without costing tokens
+            const res = await fetch(`${this.baseUrl}/models`, {
                 headers: {
                     Authorization: `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    model,
-                    messages: [{ role: 'user', content: 'ping' }],
-                    max_tokens: 1,
-                }),
             });
             return res.ok || res.status === 429;
         } catch {

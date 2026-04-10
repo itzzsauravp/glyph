@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import type GlyphConfig from '../../config/glyph.config';
 import { resolveAdapter } from '../../adapters';
+import type GlyphConfig from '../../config/glyph.config';
 import { ProviderType } from '../../types/llm.types';
+import { CloudPreflightTester, LocalPreflightTester } from './preflight/preflight.testers';
 import type { IPreflightTester, PreflightResult } from './preflight/preflight.types';
-import { LocalPreflightTester, CloudPreflightTester } from './preflight/preflight.testers';
 
 /**
  * Health-check and diagnostics service.
@@ -64,6 +64,8 @@ export default class LLMHealth {
 
         const results = await tester.run(adapter, apiKey, config.model);
 
+        console.log('Result from preflight:', results);
+
         let allPassed = true;
         for (const result of results) {
             if (!result.passed) {
@@ -72,19 +74,16 @@ export default class LLMHealth {
 
                 if (result.check === 'Embedding Model (nomic-embed-text)') {
                     // Warning, not blocking
-                    vscode.window.showWarningMessage(
-                        `Glyph: ${result.detail}`,
-                        'Show Log Viewer',
-                    ).then((action) => {
-                        if (action === 'Show Log Viewer') {
-                            vscode.commands.executeCommand('glyph.show_logs');
-                        }
-                    });
+                    vscode.window
+                        .showWarningMessage(`Glyph: ${result.detail}`, 'Show Log Viewer')
+                        .then((action) => {
+                            if (action === 'Show Log Viewer') {
+                                vscode.commands.executeCommand('glyph.show_logs');
+                            }
+                        });
                     allPassed = true; // embedding model is non-blocking
                 } else {
-                    vscode.window.showErrorMessage(
-                        `Glyph Preflight: ${result.detail}`,
-                    );
+                    vscode.window.showErrorMessage(`Glyph Preflight: ${result.detail}`);
                 }
             } else {
                 console.log('[LLMHealth]', `[${result.check}] PASSED`);
@@ -132,11 +131,13 @@ export default class LLMHealth {
                 const regResults = await regTester.run(regAdapter, regKey, reg.model);
                 report.set(reg.provider, regResults);
             } catch (err) {
-                report.set(reg.provider, [{
-                    check: 'Provider Setup',
-                    passed: false,
-                    detail: `Failed to initialize: ${err}`,
-                }]);
+                report.set(reg.provider, [
+                    {
+                        check: 'Provider Setup',
+                        passed: false,
+                        detail: `Failed to initialize: ${err}`,
+                    },
+                ]);
             }
         }
 

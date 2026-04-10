@@ -33,21 +33,14 @@ export class AnthropicAdapter extends BaseLLMAdapter {
         );
     }
 
-    async isReachable(modelName?: string): Promise<boolean> {
+    async isReachable(_modelName?: string): Promise<boolean> {
         try {
-            const model = modelName || AnthropicAdapter.KNOWN_MODELS[0];
-            const res = await fetch(`${this.baseUrl}/v1/messages`, {
-                method: 'POST',
+            // Lightweight check — list models endpoint validates auth without costing tokens
+            const res = await fetch(`${this.baseUrl}/v1/models`, {
                 headers: {
                     'x-api-key': this.apiKey,
                     'anthropic-version': '2023-06-01',
-                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    model,
-                    messages: [{ role: 'user', content: 'ping' }],
-                    max_tokens: 1,
-                }),
             });
             return res.ok || res.status === 429;
         } catch {

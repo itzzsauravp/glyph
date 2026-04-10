@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import type GlyphConfig from '../../config/glyph.config';
 import { resolveAdapter } from '../../adapters';
-import { ProviderType } from '../../types/llm.types';
+import type GlyphConfig from '../../config/glyph.config';
 import { getProviderDisplayName } from '../../constants/provider.constants';
+import { ProviderType } from '../../types/llm.types';
 
 /**
  * Represents a single model entry in the unified model list.
@@ -168,7 +168,12 @@ export default class ModelRegistryService {
     public async getModelsForPicker(): Promise<vscode.QuickPickItem[]> {
         const entries = await this.getUnifiedModelList();
         if (entries.length === 0) {
-            return [{ label: '$(warning) No models available', description: 'Configure a provider first' }];
+            return [
+                {
+                    label: '$(warning) No models available',
+                    description: 'Configure a provider first',
+                },
+            ];
         }
 
         // Group entries by provider display name.
@@ -189,14 +194,11 @@ export default class ModelRegistryService {
             });
 
             for (const entry of models) {
-                const sourceTag = entry.source === 'history' ? '$(history) ' : '';
+                const activePrefix = entry.isCurrent ? '$(check) ' : '';
                 items.push({
-                    label: `${sourceTag}${entry.name}`,
-                    description: entry.isCurrent
-                        ? `$(check) ACTIVE | ${entry.providerType}`
-                        : entry.providerType,
-                    detail: entry.isCurrent ? 'Currently selected model' : entry.endpoint,
-                    alwaysShow: true,
+                    label: `${activePrefix}${entry.name}`,
+                    description: entry.providerType,
+                    alwaysShow: entry.isCurrent,
                 });
             }
         }
@@ -270,7 +272,9 @@ export default class ModelRegistryService {
             const res = await fetch(url, { signal: controller.signal });
             clearTimeout(timeoutId);
 
-            if (!res.ok) return [];
+            if (!res.ok) {
+                return [];
+            }
 
             const data = await res.json();
             const modelNames = provider.parseModels(data);
@@ -295,7 +299,9 @@ export default class ModelRegistryService {
      * Returns the most recently used models from globalState.
      */
     private getHistory(): Array<Omit<UnifiedModelEntry, 'isCurrent' | 'source'>> {
-        return this.glyphConfig.getGlobalState<Array<Omit<UnifiedModelEntry, 'isCurrent' | 'source'>>>(ModelRegistryService.HISTORY_KEY, []);
+        return this.glyphConfig.getGlobalState<
+            Array<Omit<UnifiedModelEntry, 'isCurrent' | 'source'>>
+        >(ModelRegistryService.HISTORY_KEY, []);
     }
 
     /**
@@ -318,9 +324,6 @@ export default class ModelRegistryService {
         // Trim to max history size.
         const trimmed = filtered.slice(0, ModelRegistryService.MAX_HISTORY);
 
-        await this.glyphConfig.updateGlobalState(
-            ModelRegistryService.HISTORY_KEY,
-            trimmed,
-        );
+        await this.glyphConfig.updateGlobalState(ModelRegistryService.HISTORY_KEY, trimmed);
     }
 }

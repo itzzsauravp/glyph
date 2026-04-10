@@ -1,4 +1,4 @@
-import { BaseLLMAdapter } from "../../../adapters";
+import type { BaseLLMAdapter } from '../../../adapters';
 import type { IPreflightTester, PreflightResult } from './preflight.types';
 
 /**
@@ -96,13 +96,20 @@ export class CloudPreflightTester implements IPreflightTester {
         }
 
         // Check 2: Endpoint reachable (also validates auth)
-        const reachable = await adapter.isReachable(model);
+        let reachable = false;
+        let reachabilityDetail: string | undefined;
+        try {
+            reachable = await adapter.isReachable(model);
+            if (!reachable) {
+                reachabilityDetail = `Cannot reach ${this.providerName}. The API key may be invalid, or the endpoint is unreachable.`;
+            }
+        } catch (err) {
+            reachabilityDetail = `${this.providerName} connectivity check failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
         results.push({
             check: 'Endpoint & Auth Valid',
             passed: reachable,
-            detail: reachable
-                ? undefined
-                : `Cannot reach ${this.providerName}. Check your API key and network.`,
+            detail: reachable ? undefined : reachabilityDetail,
         });
 
         // Check 3: Model accessible

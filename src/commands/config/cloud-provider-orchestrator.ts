@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
+import { resolveAdapter } from '../../adapters';
 import type GlyphConfig from '../../config/glyph.config';
 import { CLOUD_REGISTERY } from '../../constants';
-import { resolveAdapter } from '../../adapters';
 import type { StatusBarService } from '../../services';
 import type { ICloudRegistery } from '../../types/llm.types';
 import BaseCommand from '../core/base.command';

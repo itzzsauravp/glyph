@@ -28,22 +28,11 @@ export class GoogleAdapter extends BaseLLMAdapter {
         }).embeddingModel(embeddingModelName);
     }
 
-    async isReachable(modelName?: string): Promise<boolean> {
+    async isReachable(_modelName?: string): Promise<boolean> {
         try {
-            const model = modelName || this.registry.models[0];
-            const url = `${this.baseUrl}${this.registry.chatUrl}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model,
-                    messages: [{ role: 'user', content: 'ping' }],
-                    max_tokens: 1,
-                }),
-            });
+            // Lightweight check — list models with API key as query param
+            const url = `${this.baseUrl}/v1beta/models?key=${this.apiKey}`;
+            const res = await fetch(url);
             return res.ok || res.status === 429;
         } catch {
             return false;

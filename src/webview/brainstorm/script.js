@@ -5,34 +5,38 @@
 const vscode = acquireVsCodeApi();
 
 // ── DOM References ──────────────────────────────────
-const appWrapper        = document.getElementById('app-wrapper');
-const chatContainer     = document.getElementById('chat-container');
-const promptInput       = document.getElementById('prompt-input');
-const sendBtn           = document.getElementById('send-btn');
-const clearBtn          = document.getElementById('clear-btn');
-const errorDisplay      = document.getElementById('error-display');
+const appWrapper = document.getElementById('app-wrapper');
+const chatContainer = document.getElementById('chat-container');
+const promptInput = document.getElementById('prompt-input');
+const sendBtn = document.getElementById('send-btn');
+const clearBtn = document.getElementById('clear-btn');
+const errorDisplay = document.getElementById('error-display');
 const thinkingIndicator = document.getElementById('thinking-indicator');
-const thinkingName      = document.getElementById('thinking-name');
-const modelDropdown     = document.getElementById('model-dropdown');
-const dropdownTrigger   = document.getElementById('dropdown-trigger');
-const optionsList       = document.getElementById('dropdown-options-list');
-const selectedModelEl   = document.getElementById('selected-model-name');
-const codebaseToggle    = document.getElementById('codebase-toggle');
+const thinkingName = document.getElementById('thinking-name');
+const modelDropdown = document.getElementById('model-dropdown');
+const dropdownTrigger = document.getElementById('dropdown-trigger');
+const optionsList = document.getElementById('dropdown-options-list');
+const selectedModelEl = document.getElementById('selected-model-name');
+const codebaseToggle = document.getElementById('codebase-toggle');
+const searchInput = document.getElementById('dropdown-search');
 
 let currentAiMessageElement = null;
 let currentModelName = '';
-let modelsData = [];
+let modelsData = {};
+let shouldAutoScroll = true;
 
 // ── SVG Icons ───────────────────────────────────────
 const COPY_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-const CHECK_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+const _CHECK_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
 
 // Notify backend we're ready
 vscode.postMessage({ type: 'webview-ready' });
 
 // ── State Transitions ──────────────────────────────
 function switchToChatMode() {
-    if (appWrapper.classList.contains('chat-mode')) return;
+    if (appWrapper.classList.contains('chat-mode')) {
+        return;
+    }
     appWrapper.classList.remove('hero-mode');
     appWrapper.classList.add('chat-mode');
 }
@@ -45,7 +49,7 @@ function switchToHeroMode() {
 // ── Auto-resize textarea ───────────────────────────
 promptInput.addEventListener('input', () => {
     promptInput.style.height = 'auto';
-    promptInput.style.height = Math.min(promptInput.scrollHeight, 180) + 'px';
+    promptInput.style.height = `${Math.min(promptInput.scrollHeight, 180)}px`;
 });
 
 // ── Codebase Toggle ────────────────────────────────
@@ -55,9 +59,38 @@ codebaseToggle.addEventListener('click', () => {
 });
 
 // ── Custom Dropdown Logic ─────────────────────────
+let dropdownOpen = false;
+
+function openDropdown() {
+    dropdownOpen = true;
+    optionsList.classList.add('show');
+    dropdownTrigger.classList.add('active');
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+        filterDropdown('');
+    }
+    // Scroll active model into view
+    requestAnimationFrame(() => {
+        const active = optionsList.querySelector('.dropdown-option.selected');
+        if (active) {
+            active.scrollIntoView({ block: 'nearest' });
+        }
+    });
+}
+
+function closeDropdown() {
+    dropdownOpen = false;
+    optionsList.classList.remove('show');
+    dropdownTrigger.classList.remove('active');
+}
+
 function toggleDropdown() {
-    const isOpen = optionsList.classList.toggle('show');
-    dropdownTrigger.classList.toggle('active', isOpen);
+    if (dropdownOpen) {
+        closeDropdown();
+    } else {
+        openDropdown();
+    }
 }
 
 dropdownTrigger.addEventListener('click', (e) => {
@@ -65,10 +98,46 @@ dropdownTrigger.addEventListener('click', (e) => {
     toggleDropdown();
 });
 
-document.addEventListener('click', () => {
-    optionsList.classList.remove('show');
-    dropdownTrigger.classList.remove('active');
+document.addEventListener('click', (e) => {
+    if (!modelDropdown.contains(e.target)) {
+        closeDropdown();
+    }
 });
+
+// ── Dropdown Search / Filter ──────────────────────
+if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+        filterDropdown(e.target.value);
+    });
+    searchInput.addEventListener('click', (e) => e.stopPropagation());
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeDropdown();
+        }
+    });
+}
+
+function filterDropdown(query) {
+    const normalizedQuery = query.toLowerCase().trim();
+    const groups = optionsList.querySelectorAll('.dropdown-provider-group');
+
+    groups.forEach((group) => {
+        const options = group.querySelectorAll('.dropdown-option');
+        let visibleCount = 0;
+
+        options.forEach((opt) => {
+            const name = (opt.getAttribute('data-model-name') || '').toLowerCase();
+            const matches = !normalizedQuery || name.includes(normalizedQuery);
+            opt.style.display = matches ? '' : 'none';
+            if (matches) {
+                visibleCount++;
+            }
+        });
+
+        // Hide entire provider group if no models match
+        group.style.display = visibleCount > 0 ? '' : 'none';
+    });
+}
 
 function handleModelSelect(modelInfo) {
     currentModelName = modelInfo.name;
@@ -80,11 +149,10 @@ function handleModelSelect(modelInfo) {
             name: modelInfo.name,
             providerType: modelInfo.providerType,
             endpoint: modelInfo.endpoint,
-        }
+        },
     });
 
-    optionsList.classList.remove('show');
-    dropdownTrigger.classList.remove('active');
+    closeDropdown();
 }
 
 // ── Chat Functions ─────────────────────────────────
@@ -92,7 +160,7 @@ function appendMessage(role) {
     const el = document.createElement('div');
     el.className = `message message-${role}`;
     chatContainer.appendChild(el);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+    scrollToBottom();
     return el;
 }
 
@@ -113,7 +181,9 @@ function createUserCopyButton(text) {
 
 function sendMessage() {
     const text = promptInput.value.trim();
-    if (!text) return;
+    if (!text) {
+        return;
+    }
 
     errorDisplay.textContent = '';
     switchToChatMode();
@@ -128,9 +198,12 @@ function sendMessage() {
     promptInput.value = '';
     promptInput.style.height = 'auto';
 
+    // Reset auto-scroll when user sends a new message
+    shouldAutoScroll = true;
+
     vscode.postMessage({
         type: 'chat-message',
-        value: { text }
+        value: { text },
     });
 }
 
@@ -141,6 +214,7 @@ clearBtn.addEventListener('click', () => {
     chatContainer.innerHTML = '';
     errorDisplay.textContent = '';
     currentAiMessageElement = null;
+    shouldAutoScroll = true;
     switchToHeroMode();
 });
 
@@ -154,10 +228,14 @@ promptInput.addEventListener('keydown', (e) => {
 // ── Copy Button (event delegation) ──────────────────
 chatContainer.addEventListener('click', (e) => {
     const btn = e.target.closest('.copy-btn');
-    if (!btn) return;
+    if (!btn) {
+        return;
+    }
 
     const rawText = btn.getAttribute('data-clipboard');
-    if (!rawText) return;
+    if (!rawText) {
+        return;
+    }
 
     navigator.clipboard.writeText(rawText).then(() => {
         btn.classList.add('copied');
@@ -175,41 +253,63 @@ chatContainer.addEventListener('click', (e) => {
     });
 });
 
-// ── Auto-scroll ────────────────────────────────────
-const autoScroll = () => {
-    const threshold = 50;
-    const pos = chatContainer.scrollTop + chatContainer.offsetHeight;
-    if (pos >= chatContainer.scrollHeight - threshold) {
+// ── Smart Auto-Scroll ──────────────────────────────
+// Always scroll during streaming unless user manually scrolled up
+chatContainer.addEventListener('scroll', () => {
+    const distFromBottom =
+        chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight;
+    shouldAutoScroll = distFromBottom < 80;
+});
+
+function scrollToBottom() {
+    if (shouldAutoScroll) {
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
-};
+}
 
-// ── Build Model Dropdown with Pre-Grouped Data ──────
+// ── Build Model Dropdown with Provider Groups ──────
 function buildModelDropdown(groupedModels, currentModel) {
-    optionsList.innerHTML = '';
+    // Clear existing options but keep the search input
+    const existingGroups = optionsList.querySelectorAll(
+        '.dropdown-provider-group, .dropdown-empty',
+    );
+    existingGroups.forEach((el) => el.remove());
 
     const entries = Object.entries(groupedModels);
 
     if (entries.length === 0) {
         const empty = document.createElement('div');
-        empty.className = 'dropdown-group-header';
+        empty.className = 'dropdown-empty';
         empty.textContent = 'No models available';
         optionsList.appendChild(empty);
         return;
     }
 
-    // Iterate over providers
+    // Deduplicate: track unique model names across all providers
+    const seen = new Set();
+
     for (const [provider, models] of entries) {
+        // Create a provider group container
+        const groupEl = document.createElement('div');
+        groupEl.className = 'dropdown-provider-group';
+
         const head = document.createElement('div');
         head.className = 'dropdown-group-header';
-        head.textContent = provider;
-        optionsList.appendChild(head);
+        head.innerHTML = `<span class="provider-name">${provider}</span><span class="provider-count">${models.length}</span>`;
+        groupEl.appendChild(head);
 
         for (const model of models) {
-            const opt = document.createElement('div');
+            // Skip duplicates across providers
+            const uniqueKey = `${model.providerType}::${model.name}`;
+            if (seen.has(uniqueKey)) {
+                continue;
+            }
+            seen.add(uniqueKey);
+
             const isSelected = model.isCurrent || (currentModel && model.name === currentModel);
 
-            opt.className = `dropdown-option ${isSelected ? 'selected' : ''}`;
+            const opt = document.createElement('div');
+            opt.className = `dropdown-option${isSelected ? ' selected' : ''}`;
             opt.setAttribute('data-model-name', model.name);
 
             if (isSelected) {
@@ -227,25 +327,30 @@ function buildModelDropdown(groupedModels, currentModel) {
                 handleModelSelect(model);
             });
 
-            optionsList.appendChild(opt);
+            groupEl.appendChild(opt);
         }
+
+        optionsList.appendChild(groupEl);
     }
 }
 
 // ── Message Handler ────────────────────────────────
-window.addEventListener('message', event => {
+window.addEventListener('message', (event) => {
     const msg = event.data;
     switch (msg.type) {
         case 'set-models-list':
-            buildModelDropdown(msg.groupedModels || {}, msg.currentModel);
-            if (msg.currentModel) currentModelName = msg.currentModel;
+            modelsData = msg.groupedModels || {};
+            buildModelDropdown(modelsData, msg.currentModel);
+            if (msg.currentModel) {
+                currentModelName = msg.currentModel;
+            }
             break;
 
         case 'set-model-name':
             currentModelName = msg.value;
             selectedModelEl.textContent = msg.value;
-            // Update selection highlight using the exact ID
-            document.querySelectorAll('.dropdown-option').forEach(opt => {
+            // Update selection highlight
+            document.querySelectorAll('.dropdown-option').forEach((opt) => {
                 const targetId = opt.getAttribute('data-model-name');
                 opt.classList.toggle('selected', targetId === msg.value);
             });
@@ -262,7 +367,8 @@ window.addEventListener('message', event => {
         case 'set-thinking':
             thinkingName.textContent = msg.value || currentModelName || 'Glyph';
             thinkingIndicator.classList.add('active');
-            autoScroll();
+            shouldAutoScroll = true;
+            scrollToBottom();
             break;
 
         case 'stream-update':
@@ -271,7 +377,7 @@ window.addEventListener('message', event => {
                 currentAiMessageElement = appendMessage('ai');
             }
             currentAiMessageElement.innerHTML = msg.html;
-            autoScroll();
+            scrollToBottom();
             break;
 
         case 'generation-complete':

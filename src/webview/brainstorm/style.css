@@ -18,10 +18,14 @@
     --glow: rgba(155, 109, 255, 0.15);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
 
 body {
-    font-family: var(--vscode-font-family, 'Segoe UI', system-ui, -apple-system, sans-serif);
+    font-family: var(--vscode-font-family, "Segoe UI", system-ui, -apple-system, sans-serif);
     background-color: var(--bg-body);
     color: var(--text-main);
     display: flex;
@@ -131,10 +135,15 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    scroll-behavior: smooth;
 }
 
-.chat-container::-webkit-scrollbar { width: 5px; }
-.chat-container::-webkit-scrollbar-track { background: transparent; }
+.chat-container::-webkit-scrollbar {
+    width: 5px;
+}
+.chat-container::-webkit-scrollbar-track {
+    background: transparent;
+}
 .chat-container::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 10px;
@@ -172,17 +181,29 @@ body {
     width: 100%;
 }
 
-.message-ai p { margin-top: 0; margin-bottom: 0.6em; }
-.message-ai p:last-child { margin-bottom: 0; }
-.message-ai pre { margin: 0.5rem 0; overflow-x: auto; border-radius: 6px; }
+.message-ai p {
+    margin-top: 0;
+    margin-bottom: 0.6em;
+}
+.message-ai p:last-child {
+    margin-bottom: 0;
+}
+.message-ai pre {
+    margin: 0.5rem 0;
+    overflow-x: auto;
+    border-radius: 6px;
+}
 .message-ai code {
-    font-family: var(--vscode-editor-font-family, 'Cascadia Code', monospace);
+    font-family: var(--vscode-editor-font-family, "Cascadia Code", monospace);
     font-size: 12px;
     background-color: rgba(255, 255, 255, 0.06);
     padding: 2px 5px;
     border-radius: 4px;
 }
-.message-ai pre code { padding: 0; background-color: transparent; }
+.message-ai pre code {
+    padding: 0;
+    background-color: transparent;
+}
 
 /* ── User Message Copy Button ────────────────────── */
 .user-copy-btn {
@@ -258,10 +279,20 @@ body {
     align-items: center;
     justify-content: center;
 }
-.copy-btn:hover { background-color: rgba(255, 255, 255, 0.08); color: #fff; }
-.copy-btn.copied { border-color: #34d399; color: #34d399; }
+.copy-btn:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+.copy-btn.copied {
+    border-color: #34d399;
+    color: #34d399;
+}
 
-pre.hljs { margin: 0; padding: 14px; background: transparent !important; }
+pre.hljs {
+    margin: 0;
+    padding: 14px;
+    background: transparent;
+}
 
 /* ── Thinking Indicator ───────────────────────────── */
 .thinking-container {
@@ -273,7 +304,9 @@ pre.hljs { margin: 0; padding: 14px; background: transparent !important; }
     color: var(--text-muted);
     animation: fadeInUp 0.3s ease-out;
 }
-.thinking-container.active { display: flex; }
+.thinking-container.active {
+    display: flex;
+}
 
 .thinking-dots {
     display: flex;
@@ -288,9 +321,15 @@ pre.hljs { margin: 0; padding: 14px; background: transparent !important; }
     background: var(--primary);
     animation: pulse-dot 1.4s infinite ease-in-out both;
 }
-.thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
-.thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
-.thinking-dots span:nth-child(3) { animation-delay: 0s; }
+.thinking-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+.thinking-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+.thinking-dots span:nth-child(3) {
+    animation-delay: 0s;
+}
 
 /* ── Input Area ──────────────────────────────────── */
 .input-area {
@@ -306,12 +345,16 @@ pre.hljs { margin: 0; padding: 14px; background: transparent !important; }
     border-radius: 16px;
     padding: 0;
     overflow: visible;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    transition:
+        border-color 0.3s ease,
+        box-shadow 0.3s ease;
 }
 
 .input-card:focus-within {
     border-color: rgba(0, 120, 212, 0.4);
-    box-shadow: 0 0 0 3px var(--glow), 0 8px 32px rgba(0, 0, 0, 0.3);
+    box-shadow:
+        0 0 0 3px var(--glow),
+        0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .error-message {
@@ -367,8 +410,8 @@ textarea::placeholder {
 /* ── Custom Model Dropdown ───────────────────────── */
 .custom-dropdown {
     position: relative;
-    min-width: 180px;
-    max-width: 260px;
+    min-width: 160px;
+    max-width: 240px;
     font-size: 11px;
     font-weight: 500;
     user-select: none;
@@ -416,59 +459,120 @@ textarea::placeholder {
     color: var(--primary);
 }
 
+/* ── Dropdown Panel ──────────────────────────────── */
 .dropdown-options-list {
     position: absolute;
     bottom: calc(100% + 10px);
     left: 0;
     width: 100%;
-    min-width: 220px;
-    max-height: 380px;
+    min-width: 280px;
+    max-height: 420px;
     background: var(--bg-body);
     border: 1px solid var(--card-border);
     border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-    overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
     z-index: 1000;
     opacity: 0;
     visibility: hidden;
     transform: translateY(10px);
     transition: all 0.2s ease;
-    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
 }
 .dropdown-options-list.show {
     opacity: 1;
     visibility: visible;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
 }
 
-.dropdown-options-list::-webkit-scrollbar { width: 5px; }
+/* ── Dropdown Search ─────────────────────────────── */
+.dropdown-search-wrap {
+    padding: 8px 10px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+
+.dropdown-search {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+.dropdown-search:focus {
+    border-color: rgba(155, 109, 255, 0.4);
+}
+.dropdown-search::placeholder {
+    color: var(--text-muted);
+    opacity: 0.5;
+}
+
+/* ── Dropdown Scrollable Area ────────────────────── */
+.dropdown-options-list {
+    overflow-y: auto;
+}
+
+.dropdown-options-list::-webkit-scrollbar {
+    width: 4px;
+}
 .dropdown-options-list::-webkit-scrollbar-thumb {
     background: rgba(155, 109, 255, 0.2);
     border-radius: 10px;
 }
 
-.dropdown-group-header {
-    padding: 12px 14px 6px;
-    font-size: 10px;
-    font-weight: 800;
-    color: var(--primary);
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-    opacity: 0.9;
-    user-select: none;
+/* ── Provider Group ──────────────────────────────── */
+.dropdown-provider-group {
+    padding-bottom: 2px;
+}
+
+.dropdown-provider-group + .dropdown-provider-group {
     border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
-.dropdown-group-header:first-child { border-top: none; }
 
-.dropdown-option {
-    padding: 8px 14px;
-    color: var(--text-muted);
-    transition: all 0.15s ease;
+.dropdown-group-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    padding: 10px 14px 5px;
+    user-select: none;
+}
+
+.dropdown-group-header .provider-name {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.9;
+}
+
+.dropdown-group-header .provider-count {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 6px;
+    border-radius: 8px;
+    opacity: 0.7;
+}
+
+/* ── Dropdown Option ─────────────────────────────── */
+.dropdown-option {
+    padding: 6px 14px;
+    color: var(--text-muted);
+    transition: all 0.12s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     font-size: 11px;
+    cursor: pointer;
 }
 .dropdown-option:hover {
     background: rgba(255, 255, 255, 0.05);
@@ -477,6 +581,7 @@ textarea::placeholder {
 .dropdown-option.selected {
     color: var(--text-main);
     font-weight: 600;
+    background: rgba(155, 109, 255, 0.06);
 }
 
 .dropdown-option .option-label {
@@ -487,15 +592,27 @@ textarea::placeholder {
 }
 
 .dropdown-option .active-dot {
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: #4ade80;
-    box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+    box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
     opacity: 0;
     flex-shrink: 0;
+    transition: opacity 0.2s ease;
 }
-.dropdown-option.selected .active-dot { opacity: 1; }
+.dropdown-option.selected .active-dot {
+    opacity: 1;
+}
+
+/* ── Dropdown Empty State ────────────────────────── */
+.dropdown-empty {
+    padding: 16px 14px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    opacity: 0.7;
+}
 
 /* ── Codebase Toggle ─────────────────────────────── */
 .codebase-pill {
@@ -555,14 +672,18 @@ textarea::placeholder {
     transform: scale(1.05);
     box-shadow: 0 4px 16px rgba(0, 120, 212, 0.35);
 }
-.send-btn:active { transform: scale(0.95); }
+.send-btn:active {
+    transform: scale(0.95);
+}
 
 .send-btn svg {
     width: 16px;
     height: 16px;
     transition: transform 0.2s ease;
 }
-.send-btn:hover svg { transform: translateY(-1px); }
+.send-btn:hover svg {
+    transform: translateY(-1px);
+}
 
 /* ── New Chat Button ─────────────────────────────── */
 .new-chat-btn {
@@ -584,16 +705,36 @@ textarea::placeholder {
 
 /* ── Animations ──────────────────────────────────── */
 @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes fadeInDown {
-    from { opacity: 0; transform: translateY(-12px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes pulse-dot {
-    0%, 80%, 100% { transform: scale(0.4); opacity: 0.4; }
-    40% { transform: scale(1); opacity: 1; }
+    0%,
+    80%,
+    100% {
+        transform: scale(0.4);
+        opacity: 0.4;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }

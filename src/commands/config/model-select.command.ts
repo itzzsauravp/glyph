@@ -10,9 +10,7 @@ import BaseCommand from '../core/base.command';
  * with separators.
  */
 export default class ModelSelect extends BaseCommand {
-    constructor(
-        private readonly modelRegistry: ModelRegistryService,
-    ) {
+    constructor(private readonly modelRegistry: ModelRegistryService) {
         super();
     }
 
@@ -22,24 +20,19 @@ export default class ModelSelect extends BaseCommand {
         const items = await this.modelRegistry.getModelsForPicker();
 
         const selected = await vscode.window.showQuickPick<vscode.QuickPickItem>(items, {
-            placeHolder: 'Select a model',
+            placeHolder: 'Switch model…',
             matchOnDescription: true,
-            matchOnDetail: true,
         });
 
         if (!selected || selected.kind === vscode.QuickPickItemKind.Separator) {
             return;
         }
 
-        // Extract providerType from the description field for precise matching.
-        const providerType = selected.description
-            ?.replace(/^\$\(check\)\s*ACTIVE\s*\|\s*/, '')
-            ?.trim();
+        // Clean label (remove $(check) prefix if present)
+        const cleanLabel = selected.label.replace(/^\$\(check\)\s*/, '');
+        const providerType = selected.description?.trim();
 
-        const entry = await this.modelRegistry.resolvePickerSelection(
-            selected.label,
-            providerType,
-        );
+        const entry = await this.modelRegistry.resolvePickerSelection(cleanLabel, providerType);
         if (entry) {
             await this.modelRegistry.switchToModel(entry);
             vscode.window.showInformationMessage(

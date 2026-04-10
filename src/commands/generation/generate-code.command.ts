@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
 import {
-    EditorService,
-    EditorUIService,
-    LLMService,
-    RangeTrackerService,
-    RepositoryIndexerService,
-    StatusBarService,
-    StatusState
+    type EditorService,
+    type EditorUIService,
+    type LLMService,
+    type RangeTrackerService,
+    type RepositoryIndexerService,
+    type StatusBarService,
+    StatusState,
 } from '../../services';
 import BaseCommand from '../core/base.command';
 

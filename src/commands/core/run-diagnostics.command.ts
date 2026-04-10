@@ -33,8 +33,11 @@ export default class RunDiagnosticsCommand extends BaseCommand {
                     for (const r of results) {
                         const icon = r.passed ? '  ✓' : '  ✗';
                         lines.push(`${icon} ${r.check}${r.detail ? ` — ${r.detail}` : ''}`);
-                        if (r.passed) totalPassed++;
-                        else totalFailed++;
+                        if (r.passed) {
+                            totalPassed++;
+                        } else {
+                            totalFailed++;
+                        }
                     }
                     lines.push('');
                 }

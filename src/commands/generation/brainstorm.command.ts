@@ -4,8 +4,7 @@ import hljs from 'highlight.js';
 import MarkdownIt from 'markdown-it';
 import * as vscode from 'vscode';
 import type GlyphConfig from '../../config/glyph.config';
-import { LLMService, ModelRegistryService } from '../../services';
-import { getProviderDisplayName } from '../../constants/provider.constants';
+import type { LLMService, ModelRegistryService } from '../../services';
 import BaseCommand from '../core/base.command';
 
 /**
@@ -50,7 +49,9 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
         // Uses debounced refresh to handle the race condition where switchToModel
         // fires model/endpoint/providerType change events sequentially.
         this.glyphConfig.onDidChange((e) => {
-            if (!this.currentPanel) return;
+            if (!this.currentPanel) {
+                return;
+            }
 
             if (e.key === 'model' && typeof e.value === 'string') {
                 this.currentPanel.webview.postMessage({
@@ -77,10 +78,7 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
         panel: vscode.WebviewPanel,
         _state: unknown,
     ): Promise<void> {
-        const wasOpen = this.context.globalState.get<boolean>(
-            Brainstorm.SESSION_STATE_KEY,
-            false,
-        );
+        const wasOpen = this.context.globalState.get<boolean>(Brainstorm.SESSION_STATE_KEY, false);
 
         if (!wasOpen) {
             // User explicitly closed — do not restore.
@@ -128,11 +126,15 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
     private attachPanel(panel: vscode.WebviewPanel): void {
         panel.webview.html = this._getHtmlForWebview();
 
-        panel.onDidDispose(() => {
-            // Mark session as explicitly closed.
-            this.context.globalState.update(Brainstorm.SESSION_STATE_KEY, false);
-            this.dispose();
-        }, null, this.disposables);
+        panel.onDidDispose(
+            () => {
+                // Mark session as explicitly closed.
+                this.context.globalState.update(Brainstorm.SESSION_STATE_KEY, false);
+                this.dispose();
+            },
+            null,
+            this.disposables,
+        );
 
         panel.webview.onDidReceiveMessage(
             (data) => this.handleWebviewMessage(data),
@@ -207,7 +209,9 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
      * coalesce into a single refresh after all values are up-to-date.
      */
     private debouncedModelRefresh(): void {
-        if (this.refreshTimer) clearTimeout(this.refreshTimer);
+        if (this.refreshTimer) {
+            clearTimeout(this.refreshTimer);
+        }
         this.refreshTimer = setTimeout(() => this.sendModelsListToPanel(), 150);
     }
 
@@ -215,7 +219,9 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
      * Fetches the unified model list and pushes it to the webview.
      */
     private async sendModelsListToPanel(): Promise<void> {
-        if (!this.currentPanel) return;
+        if (!this.currentPanel) {
+            return;
+        }
 
         const config = this.glyphConfig.getExtensionConfig();
         // 1. Fetch the raw list from the registry
@@ -232,7 +238,9 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
             const sourceId = (e.source || 'other').toLowerCase();
             const uniqueKey = `${sourceId}::${e.name}`;
 
-            if (seenKeys.has(uniqueKey)) continue;
+            if (seenKeys.has(uniqueKey)) {
+                continue;
+            }
             seenKeys.add(uniqueKey);
 
             /** * 3. STRICT GROUPING
@@ -365,7 +373,7 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                     return `\nCRITICAL PROJECT CONTEXT RETRIEVED:\nYou must use the following real symbols and implementations from the user's workspace to accurately answer their question:\n\n${contextBlocks.join('\n\n')}\n`;
                 }
             }
-        } catch (err) {
+        } catch (_err) {
             // Non-fatal — proceed without context.
         }
 
@@ -379,7 +387,9 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
      */
     private dispose(): void {
         this.currentPanel = undefined;
-        if (this.refreshTimer) clearTimeout(this.refreshTimer);
+        if (this.refreshTimer) {
+            clearTimeout(this.refreshTimer);
+        }
         while (this.disposables.length) {
             const x = this.disposables.pop();
             if (x) {
@@ -405,14 +415,10 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
         const htmlPath = path.join(webviewDir, 'index.html');
         let html = fs.readFileSync(htmlPath, 'utf8');
 
-        const webview = this.currentPanel!.webview;
+        const webview = this.currentPanel?.webview;
 
-        const styleUri = webview.asWebviewUri(
-            vscode.Uri.file(path.join(webviewDir, 'style.css')),
-        );
-        const scriptUri = webview.asWebviewUri(
-            vscode.Uri.file(path.join(webviewDir, 'script.js')),
-        );
+        const styleUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewDir, 'style.css')));
+        const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewDir, 'script.js')));
 
         html = html.replace('{{styleUri}}', styleUri.toString());
         html = html.replace('{{scriptUri}}', scriptUri.toString());
@@ -434,7 +440,7 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                 if (lang && hljs.getLanguage(lang)) {
                     try {
                         return hljs.highlight(str, { language: lang }).value;
-                    } catch (__) { }
+                    } catch (__) {}
                 }
                 return '';
             },

@@ -2,16 +2,14 @@ import path from 'node:path';
 import type * as lancedb from '@lancedb/lancedb';
 import { embed, generateText, streamText } from 'ai';
 import * as vscode from 'vscode';
-
-import type GlyphConfig from '../../config/glyph.config';
 import { resolveAdapter } from '../../adapters';
+import type GlyphConfig from '../../config/glyph.config';
 import type { RepositoryIndexerService } from '../index';
 
 /**
  * Service that interfaces with large language models through the Vercel AI SDK.
  */
 export default class LLMService {
-    
     constructor(
         public readonly glyphConfig: GlyphConfig,
         public readonly workspaceTable: lancedb.Table,
@@ -57,9 +55,9 @@ export default class LLMService {
         const apiKey = await this.glyphConfig.getApiKey(config.providerType);
 
         const adapter = resolveAdapter(config.providerType, config.endpoint, apiKey);
-        
+
         let embeddingModelName = config.embeddingModel;
-        
+
         // Hardcode fallback to nomic-embed-text for local if missing
         if (!embeddingModelName && adapter.isLocal) {
             embeddingModelName = 'nomic-embed-text';
@@ -77,7 +75,8 @@ export default class LLMService {
 
             // Handle Vercel AI SDK specific errors
             if (error.name === 'AI_NoOutputGeneratedError') {
-                message = 'The AI model returned an empty response. This can happen if the prompt was blocked or the model failed to generate text.';
+                message =
+                    'The AI model returned an empty response. This can happen if the prompt was blocked or the model failed to generate text.';
             } else if (error.name === 'AI_APICallError') {
                 message = `API Call Failed: ${error.message} (Check your model configuration and API keys).`;
             }
@@ -94,7 +93,9 @@ export default class LLMService {
         } else if (message.includes('404')) {
             throw new Error('Model Not Found: Ensure the model name exists on your provider.');
         } else if (message.includes('400')) {
-            throw new Error(`Bad Request (400): ${message}. This often happens if the model name or parameters are invalid for the provider.`);
+            throw new Error(
+                `Bad Request (400): ${message}. This often happens if the model name or parameters are invalid for the provider.`,
+            );
         }
 
         throw new Error(`LLM Error: ${message}`);
@@ -170,7 +171,9 @@ RULES:
 6. Do not include any backticks.
 `;
 
-            console.log(`[LLMService] Generating code with instruction: "${prompt.substring(0, 50)}..."`);
+            console.log(
+                `[LLMService] Generating code with instruction: "${prompt.substring(0, 50)}..."`,
+            );
 
             const { text } = await generateText({
                 model,
@@ -350,8 +353,6 @@ RULES:
                 return this.generateCode(userPrompt, codeContext, languageId);
             }
 
-            console.log('Relative Paths: ', relativePaths);
-
             const uris: vscode.Uri[] = [];
             for (const relativePath of relativePaths) {
                 const absolutePath = path.resolve(workspaceRoot, relativePath);
@@ -429,22 +430,35 @@ ${contextSection}
             const model = await this.getLanguageModel();
             console.log('[LLMService] Starting chat stream...');
 
-            const { textStream, text } = await streamText({
+            let streamError: Error | undefined;
+
+            const result = streamText({
                 model,
                 messages,
+                onError({ error }) {
+                    console.error('[LLMService] Stream error:', error);
+                    streamError = error instanceof Error ? error : new Error(String(error));
+                },
             });
 
             let chunkCount = 0;
-            for await (const chunk of textStream) {
+            for await (const chunk of result.textStream) {
                 chunkCount++;
                 onChunk(chunk);
             }
 
             console.log(`[LLMService] Chat stream completed with ${chunkCount} chunks.`);
 
-            const fullText = await text;
+            // If an error was captured during streaming, throw it now
+            if (streamError) {
+                throw streamError;
+            }
+
+            const fullText = await result.text;
             if (!fullText && chunkCount === 0) {
-                console.warn('[LLMService] Stream finished but no text was generated.');
+                throw new Error(
+                    'The AI model returned an empty response. Check your API key, model name, and provider connectivity.',
+                );
             }
 
             return fullText;

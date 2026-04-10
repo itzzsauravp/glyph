@@ -1,4 +1,4 @@
-import { BaseLLMAdapter } from "../../../adapters";
+import type { BaseLLMAdapter } from '../../../adapters';
 
 /**
  * Result of a single preflight test step.
@@ -30,5 +30,9 @@ export interface IPreflightTester {
      * @param apiKey   - The API key (may be undefined for local providers).
      * @param model    - The currently configured model name.
      */
-    run(adapter: BaseLLMAdapter, apiKey: string | undefined, model: string): Promise<PreflightResult[]>;
+    run(
+        adapter: BaseLLMAdapter,
+        apiKey: string | undefined,
+        model: string,
+    ): Promise<PreflightResult[]>;
 }

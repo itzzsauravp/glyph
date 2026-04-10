@@ -168,7 +168,7 @@
         }
     },
     "scripts": {
-        "release": "npx vsce package",
+        "release": "npm run compile && npx vsce package",
         "vscode:prepublish": "npm run package",
         "compile": "webpack",
         "watch": "webpack --watch",

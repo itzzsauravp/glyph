@@ -31,13 +31,28 @@ export function resolveAdapter(
 ): BaseLLMAdapter {
     switch (providerType) {
         case ProviderType.Ollama:
-            return new OpenAIAdapter(apiKey || '', baseUrl || 'http://127.0.0.1:11434', 'Ollama', true);
+            return new OpenAIAdapter(
+                apiKey || '',
+                baseUrl || 'http://127.0.0.1:11434',
+                'Ollama',
+                true,
+            );
 
         case ProviderType.LmStudio:
-            return new OpenAIAdapter(apiKey || '', baseUrl || 'http://127.0.0.1:1234', 'LM Studio', true);
+            return new OpenAIAdapter(
+                apiKey || '',
+                baseUrl || 'http://127.0.0.1:1234',
+                'LM Studio',
+                true,
+            );
 
         case ProviderType.OpenAI:
-            return new OpenAIAdapter(apiKey || '', baseUrl || 'https://api.openai.com', 'OpenAI', false);
+            return new OpenAIAdapter(
+                apiKey || '',
+                baseUrl || 'https://api.openai.com',
+                'OpenAI',
+                false,
+            );
 
         case 'Groq':
             return new OpenAIAdapter(apiKey || '', 'https://api.groq.com/openai', 'Groq', false);
