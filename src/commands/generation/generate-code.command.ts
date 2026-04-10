@@ -1,17 +1,19 @@
 import * as vscode from 'vscode';
-import type EditorService from '../services/editor.service';
-import type EditorUIService from '../services/editor-ui.service';
-import type LocalLLMService from '../services/llm.service';
-import type RangeTrackerService from '../services/range-tracker.service';
-import type RepositoryIndexerService from '../services/repo-indexer.service';
-import type StatusBarService from '../services/status-bar.service';
-import { StatusState } from '../services/status-bar.service';
-import BaseCommand from './base.command';
+import {
+    type EditorService,
+    type EditorUIService,
+    type LLMService,
+    type RangeTrackerService,
+    type RepositoryIndexerService,
+    type StatusBarService,
+    StatusState,
+} from '../../services';
+import BaseCommand from '../core/base.command';
 
 export default class GenerateCode extends BaseCommand {
     constructor(
         private readonly editorService: EditorService,
-        private readonly llmService: LocalLLMService,
+        private readonly llmService: LLMService,
         private readonly editorUI: EditorUIService,
         private readonly statusBar: StatusBarService,
         private readonly rangeTracker: RangeTrackerService,

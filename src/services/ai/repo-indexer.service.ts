@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type * as lancedb from '@lancedb/lancedb';
 import { tree } from 'tree-node-cli';
 import * as vscode from 'vscode';
-import type LLMService from './llm.service';
+import type { LLMService } from '../index';
 
 /**
  * Indexes document symbols (functions, classes, types, etc.) from files
@@ -33,14 +33,12 @@ export default class RepositoryIndexerService {
         try {
             const rows = await this.workspaceTable
                 .search(new Float32Array(768).fill(0))
-                .where(`path = '${filePath}'`)
+                .where(`path = '${filePath}' AND text != 'seed_marker' `)
                 .limit(1000)
                 .toArray();
 
             for (const row of rows) {
-                if (row.text !== 'seed_marker') {
-                    existing.set(row.symbolName as string, row.symbolHash as string);
-                }
+                existing.set(row.symbolName as string, row.symbolHash as string);
             }
         } catch (_error) {
             // Table may be empty or filter may match nothing — both are fine.
@@ -58,17 +56,6 @@ export default class RepositoryIndexerService {
             );
         } catch (_error) {
             // Nothing to delete — fine.
-        }
-    }
-
-    /**
-     * Removes all existing vector rows for the given file path.
-     */
-    private async clearFileVectors(filePath: string): Promise<void> {
-        try {
-            await this.workspaceTable.delete(`path = '${filePath}'`);
-        } catch (error) {
-            console.warn('[RepoIndexer] clearFileVectors — nothing to delete or error:', error);
         }
     }
 

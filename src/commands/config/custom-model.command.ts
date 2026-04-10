@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import type GlyphConfig from '../config/glyph.config';
-import type StatusBarService from '../services/status-bar.service';
-import BaseCommand from './base.command';
+import type GlyphConfig from '../../config/glyph.config';
+import type { StatusBarService } from '../../services';
+import BaseCommand from '../core/base.command';
 
 /**
  * Guides the user through setting up a custom (non-registry) model

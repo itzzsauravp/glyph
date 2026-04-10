@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { CLOUD_REGISTERY } from '../constants';
-import BaseCommand from './base.command';
+import { CLOUD_REGISTERY } from '../../constants';
+import BaseCommand from '../core/base.command';
 
 /**
  * Lets the user inspect and delete stored API keys.
@@ -70,9 +70,7 @@ export default class ManageApiKeys extends BaseCommand {
         }
 
         await this.context.secrets.delete(entry.secretKey);
-        vscode.window.showInformationMessage(
-            `API key for "${entry.label}" has been removed.`,
-        );
+        vscode.window.showInformationMessage(`API key for "${entry.label}" has been removed.`);
     };
 
     private async deleteAllKeys(): Promise<void> {

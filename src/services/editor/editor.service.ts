@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type GlyphConfig from '../config/glyph.config';
+import type GlyphConfig from '../../config/glyph.config';
 import type EditorUIService from './editor-ui.service';
 
 export default class EditorService {
