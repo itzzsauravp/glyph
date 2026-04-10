@@ -60,11 +60,7 @@ export class CloudProviderOrchestrator extends BaseCommand {
                 cancellable: false,
             },
             async (_progress) => {
-                const result = await this.verifyConnection(
-                    selectedProvider,
-                    selectedModel,
-                    apiKey,
-                );
+                const result = await this.verifyConnection(selectedProvider, selectedModel, apiKey);
 
                 if (result.success) {
                     vscode.window.showInformationMessage(result.message);
@@ -109,7 +105,8 @@ export class CloudProviderOrchestrator extends BaseCommand {
             };
         } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);
-            const isAuthError = msg.includes('401') || msg.includes('403') || msg.includes('Unauthorized');
+            const isAuthError =
+                msg.includes('401') || msg.includes('403') || msg.includes('Unauthorized');
 
             console.error('[CloudProviderOrchestrator]', msg);
 
@@ -121,4 +118,3 @@ export class CloudProviderOrchestrator extends BaseCommand {
         }
     }
 }
-

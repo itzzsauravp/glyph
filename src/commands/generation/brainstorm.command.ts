@@ -445,7 +445,7 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                 if (lang && hljs.getLanguage(lang)) {
                     try {
                         return hljs.highlight(str, { language: lang }).value;
-                    } catch (__) { }
+                    } catch (__) {}
                 }
                 return '';
             },
