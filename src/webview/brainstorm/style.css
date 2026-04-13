@@ -239,6 +239,34 @@ body {
     color: #34d399;
 }
 
+/* ── Thinking Process Block ──────────────────────── */
+.think-block {
+    margin: 8px 0;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+.think-block summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 11px;
+    user-select: none;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 4px;
+    transition: color 0.2s ease;
+}
+.think-block summary:hover {
+    color: rgba(255, 255, 255, 0.8);
+}
+.think-content {
+    margin-top: 6px;
+    color: rgba(255, 255, 255, 0.45);
+    line-height: 1.5;
+}
+
 /* ── Code Blocks ─────────────────────────────────── */
 .code-block-wrapper {
     background-color: #1a1a2e;
@@ -655,52 +683,206 @@ textarea::placeholder {
 
 /* ── Send Button ─────────────────────────────────── */
 .send-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    border: none;
-    background: linear-gradient(135deg, var(--primary), #5b5fc7);
+    border-radius: 12px;
+    background: var(--glow);
     color: #fff;
     cursor: pointer;
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.25s ease;
-    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(155, 109, 255, 0.2);
+}
+.send-btn.cancel-mode {
+    background: rgba(248, 113, 113, 0.15);
+    color: #f87171;
+    box-shadow: none;
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+.send-btn.cancel-mode .icon-send {
+    display: none;
+}
+.send-btn.cancel-mode .icon-cancel {
+    display: block !important;
 }
 .send-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 16px rgba(0, 120, 212, 0.35);
+    transform: translateY(-1px) scale(1.05);
+    box-shadow: 0 6px 16px rgba(155, 109, 255, 0.3);
+}
+.send-btn.cancel-mode:hover {
+    background: rgba(248, 113, 113, 0.25);
+    box-shadow: 0 4px 12px rgba(248, 113, 113, 0.2);
 }
 .send-btn:active {
     transform: scale(0.95);
 }
-
 .send-btn svg {
     width: 16px;
     height: 16px;
     transition: transform 0.2s ease;
 }
-.send-btn:hover svg {
+.send-btn:not(.cancel-mode):hover svg {
     transform: translateY(-1px);
 }
 
-/* ── New Chat Button ─────────────────────────────── */
-.new-chat-btn {
+/* ── Settings Controls ────────────────────────────── */
+.settings-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     background: transparent;
     color: var(--text-muted);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    padding: 5px 10px;
-    font-size: 11px;
-    font-weight: 500;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.2s ease;
+}
+.settings-btn svg {
+    width: 14px;
+    height: 14px;
+}
+.settings-btn:hover {
+    background: rgba(155, 109, 255, 0.1);
+    color: var(--primary);
+    transform: rotate(30deg);
+}
+
+/* ── New Chat (+) Button ──────────────────────────── */
+.new-chat-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s ease;
+}
+.new-chat-btn svg {
+    width: 16px;
+    height: 16px;
 }
 .new-chat-btn:hover {
     background: rgba(255, 255, 255, 0.06);
-    color: var(--text-main);
+    color: #fff;
     border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+.new-chat-btn:active {
+    transform: scale(0.95);
+}
+
+.settings-panel {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    right: 0;
+    width: 260px;
+    background: var(--vscode-editorWidget-background, #252526);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    padding: 16px;
+    z-index: 1001;
+    display: none;
+    flex-direction: column;
+    gap: 16px;
+    animation: fadeInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.settings-panel.show {
+    display: flex;
+}
+
+.settings-header {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--primary);
+    margin-bottom: 4px;
+}
+
+.setting-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.setting-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.setting-value {
+    color: var(--primary);
+    font-family: monospace;
+}
+
+.setting-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* ── Slider Styling ───────────────────────────────── */
+.slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+    cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--glow);
+    transition: transform 0.15s ease;
+}
+.slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+/* ── Context Gauge ─────────────────────────────────── */
+.gauge-wrapper {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+.gauge-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4ade80, #facc15, #f87171);
+    background-size: 260px 100%;
+    width: 0%;
+    transition: width 0.4s ease;
+}
+
+.gauge-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--text-muted);
 }
 
 /* ── Animations ──────────────────────────────────── */

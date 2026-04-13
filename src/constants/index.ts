@@ -31,9 +31,14 @@ export const CLOUD_REGISTERY: ICloudRegistery = {
     },
     OpenRouter: {
         models: [
+            'qwen/qwen3-coder:free',
+            'liquid/lfm-2.5-1.2b-thinking:free',
             'nvidia/nemotron-3-super-120b-a12b:free',
             'arcee-ai/trinity-large-preview:free',
             'openai/gpt-oss-120b:free',
+            'z-ai/glm-4.5-air:free',
+            'minimax/minimax-m2.5:free',
+            'google/gemma-4-31b-it:free',
         ],
         baseUrl: 'https://openrouter.ai/api/v1',
         chatUrl: '/chat/completions',

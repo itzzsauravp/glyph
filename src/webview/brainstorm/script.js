@@ -18,12 +18,22 @@ const dropdownTrigger = document.getElementById('dropdown-trigger');
 const optionsList = document.getElementById('dropdown-options-list');
 const selectedModelEl = document.getElementById('selected-model-name');
 const codebaseToggle = document.getElementById('codebase-toggle');
+const structureToggle = document.getElementById('structure-toggle');
 const searchInput = document.getElementById('dropdown-search');
+const settingsTrigger = document.getElementById('settings-trigger');
+const settingsPanel = document.getElementById('settings-panel');
+const memorySlider = document.getElementById('memory-slider');
+const memoryValue = document.getElementById('memory-value');
+const gaugeFill = document.getElementById('gauge-fill');
+const totalTokensText = document.getElementById('total-tokens');
+const statHistory = document.getElementById('stat-history');
+const statContext = document.getElementById('stat-context');
 
 let currentAiMessageElement = null;
 let currentModelName = '';
 let modelsData = {};
 let shouldAutoScroll = true;
+let isGenerating = false;
 
 // ── SVG Icons ───────────────────────────────────────
 const COPY_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
@@ -52,10 +62,36 @@ promptInput.addEventListener('input', () => {
     promptInput.style.height = `${Math.min(promptInput.scrollHeight, 180)}px`;
 });
 
-// ── Codebase Toggle ────────────────────────────────
+// ── Context Toggles ────────────────────────────────
 codebaseToggle.addEventListener('click', () => {
     const isActive = codebaseToggle.classList.toggle('active');
     vscode.postMessage({ type: 'toggle-codebase', value: isActive });
+});
+
+structureToggle.addEventListener('click', () => {
+    const isActive = structureToggle.classList.toggle('active');
+    vscode.postMessage({ type: 'toggle-structure', value: isActive });
+});
+
+// ── Settings Panel & Slider ────────────────────────
+settingsTrigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    settingsPanel.classList.toggle('show');
+    settingsTrigger.classList.toggle('active');
+});
+
+// Close settings when clicking outside
+document.addEventListener('click', (e) => {
+    if (!settingsPanel.contains(e.target) && !settingsTrigger.contains(e.target)) {
+        settingsPanel.classList.remove('show');
+        settingsTrigger.classList.remove('active');
+    }
+});
+
+memorySlider.addEventListener('input', (e) => {
+    const val = e.target.value;
+    memoryValue.textContent = `${val} msgs`;
+    vscode.postMessage({ type: 'set-memory-limit', value: val });
 });
 
 // ── Custom Dropdown Logic ─────────────────────────
@@ -180,11 +216,18 @@ function createUserCopyButton(text) {
 }
 
 function sendMessage() {
+    if (isGenerating) {
+        vscode.postMessage({ type: 'cancel-generation' });
+        return;
+    }
+
     const text = promptInput.value.trim();
     if (!text) {
         return;
     }
 
+    isGenerating = true;
+    sendBtn.classList.add('cancel-mode');
     errorDisplay.textContent = '';
     switchToChatMode();
 
@@ -344,6 +387,14 @@ window.addEventListener('message', (event) => {
             if (msg.currentModel) {
                 currentModelName = msg.currentModel;
             }
+            // Handle initial settings state
+            if (msg.settings) {
+                const s = msg.settings;
+                codebaseToggle.classList.toggle('active', !!s.isCodebaseAware);
+                structureToggle.classList.toggle('active', !!s.isStructureAware);
+                memorySlider.value = s.memoryLimit || 15;
+                memoryValue.textContent = `${memorySlider.value} msgs`;
+            }
             break;
 
         case 'set-model-name':
@@ -357,12 +408,23 @@ window.addEventListener('message', (event) => {
             break;
 
         case 'set-codebase-state':
-            if (msg.value) {
-                codebaseToggle.classList.add('active');
-            } else {
-                codebaseToggle.classList.remove('active');
-            }
+            codebaseToggle.classList.toggle('active', !!msg.value);
             break;
+
+        case 'usage-stats': {
+            const { historyTokens, contextTokens, memoryLimit } = msg.value;
+            const total = historyTokens + contextTokens;
+            const totalTrunc = (total / 1000).toFixed(1);
+            
+            totalTokensText.textContent = `~${totalTrunc}k tokens`;
+            statHistory.textContent = `History: ${(historyTokens / 1000).toFixed(1)}k`;
+            statContext.textContent = `Context: ${(contextTokens / 1000).toFixed(1)}k`;
+
+            // Gauge fill calculation: assume 16k is a "full" baseline for balanced context
+            const percentage = Math.min(100, (total / 16000) * 100);
+            gaugeFill.style.width = `${percentage}%`;
+            break;
+        }
 
         case 'set-thinking':
             thinkingName.textContent = msg.value || currentModelName || 'Glyph';
@@ -383,12 +445,16 @@ window.addEventListener('message', (event) => {
         case 'generation-complete':
             thinkingIndicator.classList.remove('active');
             currentAiMessageElement = null;
+            isGenerating = false;
+            sendBtn.classList.remove('cancel-mode');
             break;
 
         case 'error-notification':
             thinkingIndicator.classList.remove('active');
             errorDisplay.textContent = msg.value;
             currentAiMessageElement = null;
+            isGenerating = false;
+            sendBtn.classList.remove('cancel-mode');
             break;
     }
 });

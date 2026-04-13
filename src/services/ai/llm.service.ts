@@ -58,11 +58,31 @@ export default class LLMService {
 
         let embeddingModelName = config.embeddingModel;
 
-        // Hardcode fallback to nomic-embed-text for local if missing
-        if (!embeddingModelName && adapter.isLocal) {
-            embeddingModelName = 'nomic-embed-text';
-        } else if (!embeddingModelName) {
-            throw new Error('No embedding model configured in Glyph settings.');
+        if (!embeddingModelName) {
+            switch (config.providerType) {
+                case 'Ollama':
+                case 'LM Studio':
+                    embeddingModelName = 'nomic-embed-text';
+                    break;
+                case 'Google':
+                    embeddingModelName = 'text-embedding-004';
+                    break;
+                case 'OpenAI':
+                    embeddingModelName = 'text-embedding-3-small';
+                    break;
+                case 'OpenRouter':
+                    // OpenRouter provides various embedding endpoints, nomic is popular and cheap/free.
+                    embeddingModelName = 'nomic-ai/nomic-embed-text';
+                    break;
+                case 'Anthropic':
+                    throw new Error('Anthropic does not provide native embeddings via AI SDK. Please set a custom embedding model in Glyph settings.');
+                default:
+                    if (adapter.isLocal) {
+                        embeddingModelName = 'nomic-embed-text';
+                    } else {
+                        throw new Error('No embedding model configured in Glyph settings.');
+                    }
+            }
         }
 
         return adapter.createEmbeddingModel(embeddingModelName);
@@ -137,7 +157,7 @@ export default class LLMService {
         }
     }
 
-    public async generateEmbeddings(content: string | Array<string>): Promise<number[]> {
+    public async generateEmbeddings(content: string | Array<string>, abortSignal?: AbortSignal): Promise<number[]> {
         try {
             const embeddingModel = await this.getEmbeddingModel();
             const contents = Array.isArray(content) ? content : [content];
@@ -147,6 +167,7 @@ export default class LLMService {
             const result = await embed({
                 model: embeddingModel,
                 value: contents.join('\n'),
+                abortSignal,
             });
 
             return result.embedding;
@@ -425,6 +446,7 @@ ${contextSection}
     public async executeChatStream(
         messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
         onChunk: (chunk: string) => void,
+        abortSignal?: AbortSignal,
     ): Promise<string> {
         try {
             const model = await this.getLanguageModel();
@@ -435,6 +457,7 @@ ${contextSection}
             const result = streamText({
                 model,
                 messages,
+                abortSignal,
                 onError({ error }) {
                     console.error('[LLMService] Stream error:', error);
                     streamError = error instanceof Error ? error : new Error(String(error));
@@ -442,9 +465,39 @@ ${contextSection}
             });
 
             let chunkCount = 0;
-            for await (const chunk of result.textStream) {
-                chunkCount++;
-                onChunk(chunk);
+            let reasoningStarted = false;
+            let fullText = '';
+
+            for await (const part of result.fullStream) {
+                const partAny = part as any;
+                if (part.type === 'text-delta') {
+                    if (reasoningStarted) {
+                        onChunk('</think>\n\n');
+                        fullText += '</think>\n\n';
+                        reasoningStarted = false;
+                    }
+                    chunkCount++;
+                    const chunkInfo = partAny.textDelta || partAny.text || '';
+                    onChunk(chunkInfo);
+                    fullText += chunkInfo;
+                } else if (part.type === 'reasoning-delta' || part.type === 'reasoning-start') {
+                    if (!reasoningStarted) {
+                        onChunk('<think>\n');
+                        fullText += '<think>\n';
+                        reasoningStarted = true;
+                    }
+                    if (part.type === 'reasoning-delta') {
+                        chunkCount++;
+                        const chunkInfo = partAny.textDelta || partAny.reasoning || partAny.delta || '';
+                        onChunk(chunkInfo);
+                        fullText += chunkInfo;
+                    }
+                }
+            }
+
+            if (reasoningStarted) {
+                onChunk('</think>\n\n');
+                fullText += '</think>\n\n';
             }
 
             console.log(`[LLMService] Chat stream completed with ${chunkCount} chunks.`);
@@ -454,7 +507,6 @@ ${contextSection}
                 throw streamError;
             }
 
-            const fullText = await result.text;
             if (!fullText && chunkCount === 0) {
                 throw new Error(
                     'The AI model returned an empty response. Check your API key, model name, and provider connectivity.',

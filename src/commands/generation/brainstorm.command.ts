@@ -24,6 +24,7 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
     private chatHistory: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [];
     private md: MarkdownIt;
     private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    private activeAbortController: AbortController | null = null;
 
     /** Track whether the user explicitly closed the panel. */
     private static readonly SESSION_STATE_KEY = 'glyph.brainstorm.sessionOpen';
@@ -175,12 +176,27 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                 break;
             }
 
-            case 'toggle-codebase': {
-                // Store the toggle state in workspace scope.
+            case 'toggle-structure': {
                 await this.context.workspaceState.update(
-                    'glyph.brainstorm.codebaseAware',
+                    'glyph.brainstorm.structureAware',
                     !!data.value,
                 );
+                break;
+            }
+
+            case 'set-memory-limit': {
+                await this.context.workspaceState.update(
+                    'glyph.brainstorm.memoryLimit',
+                    Number(data.value) || 15,
+                );
+                break;
+            }
+
+            case 'cancel-generation': {
+                if (this.activeAbortController) {
+                    this.activeAbortController.abort();
+                    this.activeAbortController = null;
+                }
                 break;
             }
 
@@ -191,7 +207,21 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                     'glyph.brainstorm.codebaseAware',
                     false,
                 );
-                await this.handleChatMessage(data.value, modelName, isCodebaseAware);
+                const isStructureAware = this.context.workspaceState.get<boolean>(
+                    'glyph.brainstorm.structureAware',
+                    false,
+                );
+                const memoryLimit = this.context.workspaceState.get<number>(
+                    'glyph.brainstorm.memoryLimit',
+                    15,
+                );
+                await this.handleChatMessage(
+                    data.value,
+                    modelName,
+                    isCodebaseAware,
+                    isStructureAware,
+                    memoryLimit,
+                );
                 break;
             }
 
@@ -269,12 +299,25 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
             'glyph.brainstorm.codebaseAware',
             false,
         );
+        const isStructureAware = this.context.workspaceState.get<boolean>(
+            'glyph.brainstorm.structureAware',
+            false,
+        );
+        const memoryLimit = this.context.workspaceState.get<number>(
+            'glyph.brainstorm.memoryLimit',
+            15,
+        );
 
         // 5. Send the clean, separated data to the UI
         this.currentPanel.webview.postMessage({
             type: 'set-models-list',
             groupedModels,
             currentModel: config.model,
+            settings: {
+                isCodebaseAware,
+                isStructureAware,
+                memoryLimit,
+            },
         });
 
         this.currentPanel.webview.postMessage({
@@ -290,59 +333,128 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
 
     // ── Chat Logic ──────────────────────────────────────────────────
 
-    /**
-     * Handles a chat message from the webview, including optional codebase context injection.
-     */
     private async handleChatMessage(
         payload: { text: string },
         modelName: string,
         isCodebaseAware: boolean,
+        isStructureAware: boolean,
+        memoryLimit: number,
     ): Promise<void> {
         this.chatHistory.push({ role: 'user', content: payload.text });
 
+        // Truncate history based on user memory limit (messages to keep)
+        // Note: each chat "exchange" is 2 messages (user + assistant).
+        if (this.chatHistory.length > memoryLimit) {
+            this.chatHistory = this.chatHistory.slice(-memoryLimit);
+        }
+
         try {
+            this.activeAbortController = new AbortController();
+            const signal = this.activeAbortController.signal;
+
             this.currentPanel?.webview.postMessage({ type: 'set-thinking', value: modelName });
 
             let augmentedContext = '';
 
+            // Handle Project Structure (Directory Tree)
+            if (isStructureAware) {
+                const tree = this.repositoryIndexer.parseDirectoryStructure();
+                if (tree) {
+                    augmentedContext += `\nPROJECT STRUCTURE:\nYou can use the following directory tree to understand the project's architecture and identify relevant files:\n${tree}\n`;
+                }
+            }
+
+            // Handle Codebase RAG (Specific Snippets)
             if (isCodebaseAware) {
-                augmentedContext = await this.buildCodebaseContext(payload.text);
+                if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+                augmentedContext += await this.buildCodebaseContext(payload.text, signal);
+            }
+
+            // Calculate "Memory Stats" for the UI Gauge
+            // Approx 4 chars per token is a standard heuristic.
+            const historyTokens = Math.round(JSON.stringify(this.chatHistory).length / 4);
+            const contextTokens = Math.round(augmentedContext.length / 4);
+
+            this.currentPanel?.webview.postMessage({
+                type: 'usage-stats',
+                value: {
+                    historyTokens,
+                    contextTokens,
+                    messageCount: this.chatHistory.length,
+                    memoryLimit,
+                },
+            });
+
+            let constraintPrompt = '';
+            if (isCodebaseAware || isStructureAware) {
+                constraintPrompt = `\nCRITICAL INSTRUCTION: The user has enabled "Codebase" and/or "Structure" awareness. You MUST answer their questions strictly based on the provided project context or directory tree. If their question is completely unrelated to the provided codebase context, you MUST politely decline to answer and remind them that you are currently constrained to codebase-specific questions.`;
             }
 
             const systemPrompt = {
                 role: 'system' as const,
-                content: `You are Glyph, a coding assistant and model integrator created by Saurav Parajulee. Answer questions concisely and provide code block snippets when helpful. You are a versatile tool designed to bridge the gap between different AI providers and the developer's needs.\n${augmentedContext}`,
+                content: `You are Glyph, a coding assistant and model integrator created by Saurav Parajulee. Answer questions concisely and provide code block snippets when helpful. You are a versatile tool designed to bridge the gap between different AI providers and the developer's needs.\n\nCODEBASE CONTEXT AWARENESS: ${isCodebaseAware ? 'ACTIVE' : 'INACTIVE'}\nPROJECT STRUCTURE AWARENESS: ${isStructureAware ? 'ACTIVE' : 'INACTIVE'}${constraintPrompt}\n${augmentedContext}`,
             };
 
             const messages = [systemPrompt, ...this.chatHistory];
             let assistantResponse = '';
 
-            await this.llmService.executeChatStream(messages, (chunk: string) => {
-                assistantResponse += chunk;
-                const renderedHtml = this.md.render(assistantResponse);
-                this.currentPanel?.webview.postMessage({
-                    type: 'stream-update',
-                    html: renderedHtml,
-                });
-            });
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
 
+            await this.llmService.executeChatStream(
+                messages,
+                (chunk: string) => {
+                    assistantResponse += chunk;
+                    
+                    let processedOutput = assistantResponse;
+                    
+                    // Replace <think> and </think> with HTML details block
+                    processedOutput = processedOutput.replace(/<think>/g, '<details class="think-block" open><summary>Reasoning Process</summary><div class="think-content">');
+                    processedOutput = processedOutput.replace(/<\/think>/g, '</div></details>');
+
+                    // Prevent broken rendering if <think> hasn't been closed yet during streaming
+                    if (assistantResponse.includes('<think>') && !assistantResponse.includes('</think>')) {
+                        processedOutput += '</div></details>';
+                    }
+
+                    const renderedHtml = this.md.render(processedOutput);
+                    this.currentPanel?.webview.postMessage({
+                        type: 'stream-update',
+                        html: renderedHtml,
+                    });
+                },
+                this.activeAbortController.signal,
+            );
+
+            this.activeAbortController = null;
             this.currentPanel?.webview.postMessage({ type: 'generation-complete' });
             this.chatHistory.push({ role: 'assistant', content: assistantResponse });
         } catch (error) {
+            this.activeAbortController = null;
+            
+            // Do not show an error notification if it was intentionally aborted
+            if (error instanceof Error && error.name === 'AbortError') {
+                console.log('[Brainstorm] Generation was cancelled by the user.');
+                this.currentPanel?.webview.postMessage({ type: 'generation-complete' });
+                return;
+            }
+
             const errorMessage =
                 error instanceof Error ? error.message : 'An unknown error occurred';
             this.currentPanel?.webview.postMessage({
                 type: 'error-notification',
                 value: errorMessage,
             });
+            this.currentPanel?.webview.postMessage({ type: 'generation-complete' });
         }
     }
 
     /**
      * Builds augmented context from the workspace codebase using vector search.
      */
-    private async buildCodebaseContext(userText: string): Promise<string> {
+    private async buildCodebaseContext(userText: string, signal?: AbortSignal): Promise<string> {
         try {
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
             const directoryTree = this.repositoryIndexer.parseDirectoryStructure();
             if (directoryTree) {
                 const files = await this.llmService.identifyRequiredFiles(userText, directoryTree);
@@ -351,12 +463,15 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                     const uris = files.map((f: string) =>
                         vscode.Uri.file(path.resolve(workspaceRoot, f)),
                     );
+                    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
                     await this.repositoryIndexer.indexFile(uris);
                 }
             }
 
-            const queryVector = await this.llmService.generateEmbeddings(userText);
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+            const queryVector = await this.llmService.generateEmbeddings(userText, signal);
             if (queryVector) {
+                if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
                 const results = await this.llmService.workspaceTable
                     .search(queryVector)
                     .limit(8)
@@ -397,9 +512,6 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
             }
         }
     }
-
-    // ── HTML ────────────────────────────────────────────────────────
-
     /**
      * Reads the brainstorm chat HTML template from disk and injects
      * webview-safe URIs for the separated CSS and JS files.
@@ -407,20 +519,19 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
     private _getHtmlForWebview(): string {
         const webviewDir = path.join(
             this.context.extensionUri.fsPath,
-            'src',
+            'dist',
             'webview',
             'brainstorm',
         );
 
         const htmlPath = path.join(webviewDir, 'index.html');
-        let html = fs.readFileSync(htmlPath, 'utf8');
-
         const webview = this.currentPanel?.webview;
 
-        if (!webview) {
-            const errorHtmlPath = path.join(webviewDir, 'error.html');
-            return fs.readFileSync(errorHtmlPath, 'utf8');
+        if (!webview || !fs.existsSync(htmlPath)) {
+            return `<html><body><h3>Error: Webview assets not found at ${htmlPath}</h3></body></html>`;
         }
+
+        let html = fs.readFileSync(htmlPath, 'utf8');
 
         const styleUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewDir, 'style.css')));
         const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewDir, 'script.js')));

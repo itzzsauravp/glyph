@@ -62,17 +62,63 @@
                             <!-- Dynamic provider groups rendered here -->
                         </div>
                         </div>
-                        <div class="codebase-pill" id="codebase-toggle" title="Enable codebase-aware context">
+                        <div class="codebase-pill" id="codebase-toggle" title="Enable codebase-aware context (Vector RAG)">
                             <span class="codebase-dot"></span>
                             <span>Codebase</span>
                         </div>
-                        <button type="button" class="new-chat-btn" id="clear-btn" title="Start a new conversation">New Chat</button>
+                        <div class="codebase-pill" id="structure-toggle" title="Enable project structure awareness (Directory Tree)">
+                            <span class="codebase-dot"></span>
+                            <span>Structure</span>
+                        </div>
+                        <button type="button" class="settings-btn" id="settings-trigger" title="Context settings & memory">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
+                        </button>
+
+                        <!-- Context Settings Panel -->
+                        <div class="settings-panel" id="settings-panel">
+                            <div class="settings-header">Context & Memory Settings</div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-label">
+                                    <span>Chat Memory</span>
+                                    <span class="setting-value" id="memory-value">15 msgs</span>
+                                </div>
+                                <input type="range" id="memory-slider" min="1" max="50" value="15" class="slider">
+                                <div class="setting-hint">Number of previous messages kept in context.</div>
+                            </div>
+
+                            <div class="setting-item">
+                                <div class="setting-label">
+                                    <span>Memory Consumption</span>
+                                    <span class="setting-value" id="total-tokens">~0.0k tokens</span>
+                                </div>
+                                <div class="gauge-wrapper">
+                                    <div class="gauge-fill" id="gauge-fill" style="width: 5%;"></div>
+                                </div>
+                                <div class="gauge-stats">
+                                    <span id="stat-history">History: 0.0k</span>
+                                    <span id="stat-context">Context: 0.0k</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="controls-right">
-                        <button type="button" class="send-btn" id="send-btn" title="Send message">
+                        <button type="button" class="new-chat-btn" id="clear-btn" title="Start a new conversation">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </button>
+                        <button type="button" class="send-btn" id="send-btn" title="Send message">
+                            <svg class="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="12" y1="19" x2="12" y2="5"></line>
                                 <polyline points="5 12 12 5 19 12"></polyline>
+                            </svg>
+                            <svg class="icon-cancel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                                <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
                             </svg>
                         </button>
                     </div>

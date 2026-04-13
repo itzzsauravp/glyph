@@ -106,7 +106,38 @@ export default class RepositoryIndexerService {
             );
 
             if (!symbols || symbols.length === 0) {
-                console.warn(`[RepoIndexer] No symbols found for ${uri.fsPath}`);
+                // FALLBACK: If no symbols are found, index the entire file as a single unit
+                // (Common for README.md, package.json, etc.)
+                const document = await vscode.workspace.openTextDocument(uri);
+                const text = document.getText();
+                if (!text || text.trim().length < 10) {
+                    return;
+                }
+
+                const hash = this.hashText(text);
+                const existingHash = (await this.getExistingSymbols(uri.fsPath)).get('file_content');
+
+                if (existingHash === hash) {
+                    console.log(`[RepoIndexer] Content up-to-date for ${uri.fsPath}`);
+                    return;
+                }
+
+                if (existingHash) {
+                    await this.deleteSymbol(uri.fsPath, 'file_content');
+                }
+
+                const vector = await this.llmService.generateEmbeddings(text);
+                await this.workspaceTable.add([{
+                    text,
+                    symbolName: 'file_content',
+                    text_type: 'document',
+                    path: uri.fsPath,
+                    vector: new Float32Array(vector),
+                    symbolHash: hash,
+                    lastIndexed: new Date().toISOString(),
+                }]);
+                
+                console.log(`[RepoIndexer] Indexed entire file content for ${uri.fsPath}`);
                 return;
             }
 
