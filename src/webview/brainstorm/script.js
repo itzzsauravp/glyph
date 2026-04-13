@@ -19,6 +19,7 @@ const optionsList = document.getElementById('dropdown-options-list');
 const selectedModelEl = document.getElementById('selected-model-name');
 const codebaseToggle = document.getElementById('codebase-toggle');
 const structureToggle = document.getElementById('structure-toggle');
+const toolsToggle = document.getElementById('tools-toggle');
 const searchInput = document.getElementById('dropdown-search');
 const settingsTrigger = document.getElementById('settings-trigger');
 const settingsPanel = document.getElementById('settings-panel');
@@ -34,6 +35,7 @@ let currentModelName = '';
 let modelsData = {};
 let shouldAutoScroll = true;
 let isGenerating = false;
+let isToolsEnabled = false;
 
 // ── SVG Icons ───────────────────────────────────────
 const COPY_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
@@ -71,6 +73,25 @@ codebaseToggle.addEventListener('click', () => {
 structureToggle.addEventListener('click', () => {
     const isActive = structureToggle.classList.toggle('active');
     vscode.postMessage({ type: 'toggle-structure', value: isActive });
+});
+
+// ── Tools Toggle ──────────────────────────────────
+toolsToggle.addEventListener('click', () => {
+    if (toolsToggle.classList.contains('tools-checking')) return;
+
+    if (isToolsEnabled) {
+        // Turn off
+        isToolsEnabled = false;
+        toolsToggle.classList.remove('tools-active', 'tools-error');
+        toolsToggle.setAttribute('data-tooltip', 'Enable agentic tool calls (reads files, searches code)');
+        vscode.postMessage({ type: 'toggle-tools', value: false });
+        return;
+    }
+
+    // Run capability test first
+    toolsToggle.classList.add('tools-checking');
+    toolsToggle.setAttribute('data-tooltip', 'Testing tool call support…');
+    vscode.postMessage({ type: 'test-tool-calls' });
 });
 
 // ── Settings Panel & Slider ────────────────────────
@@ -189,6 +210,13 @@ function handleModelSelect(modelInfo) {
     });
 
     closeDropdown();
+
+    // Auto-run tool capability check on model change
+    if (toolsToggle && !toolsToggle.classList.contains('tools-checking')) {
+        toolsToggle.classList.add('tools-checking');
+        toolsToggle.setAttribute('data-tooltip', 'Testing tool call support…');
+        vscode.postMessage({ type: 'test-tool-calls' });
+    }
 }
 
 // ── Chat Functions ─────────────────────────────────
@@ -268,32 +296,60 @@ promptInput.addEventListener('keydown', (e) => {
     }
 });
 
-// ── Copy Button (event delegation) ──────────────────
+// ── Copy Button & Permissions (event delegation) ──────────────────
 chatContainer.addEventListener('click', (e) => {
-    const btn = e.target.closest('.copy-btn');
-    if (!btn) {
-        return;
-    }
-
-    const rawText = btn.getAttribute('data-clipboard');
-    if (!rawText) {
-        return;
-    }
-
-    navigator.clipboard.writeText(rawText).then(() => {
-        btn.classList.add('copied');
-        const copyIcon = btn.querySelector('.copy-icon-wrapper');
-        const checkIcon = btn.querySelector('.check-icon');
-        if (copyIcon && checkIcon) {
-            copyIcon.style.display = 'none';
-            checkIcon.style.display = 'inline-block';
-            setTimeout(() => {
-                copyIcon.style.display = 'inline-block';
-                checkIcon.style.display = 'none';
-                btn.classList.remove('copied');
-            }, 2000);
+    // Handle Copy Button
+    const copyBtn = e.target.closest('.copy-btn');
+    if (copyBtn) {
+        const rawText = copyBtn.getAttribute('data-clipboard');
+        if (rawText) {
+            navigator.clipboard.writeText(rawText).then(() => {
+                copyBtn.classList.add('copied');
+                const copyIcon = copyBtn.querySelector('.copy-icon-wrapper');
+                const checkIcon = copyBtn.querySelector('.check-icon');
+                if (copyIcon && checkIcon) {
+                    copyIcon.style.display = 'none';
+                    checkIcon.style.display = 'inline-block';
+                    setTimeout(() => {
+                        copyIcon.style.display = 'inline-block';
+                        checkIcon.style.display = 'none';
+                        copyBtn.classList.remove('copied');
+                    }, 2000);
+                }
+            });
         }
-    });
+        return;
+    }
+
+    // Handle Permission Buttons
+    const permBtn = e.target.closest('.perm-btn');
+    if (permBtn) {
+        const isApprove = permBtn.classList.contains('perm-approve');
+        const id = permBtn.getAttribute('data-id');
+        const block = permBtn.closest('.permission-block');
+        
+        if (id && block && !permBtn.disabled) {
+            // Disable buttons to prevent double-click
+            block.querySelectorAll('.perm-btn').forEach(b => {
+                b.disabled = true;
+            });
+            
+            // Send resolution back to Extension
+            vscode.postMessage({
+                type: 'tool-permission-response',
+                value: { id, approved: isApprove }
+            });
+            
+            // Update UI state
+            if (isApprove) {
+                block.classList.add('resolved-approved');
+                permBtn.innerHTML = `<span>✓ Approved</span>`;
+            } else {
+                block.classList.add('resolved-denied');
+                permBtn.innerHTML = `<span>✗ Denied</span>`;
+            }
+        }
+    }
 });
 
 // ── Smart Auto-Scroll ──────────────────────────────
@@ -394,6 +450,11 @@ window.addEventListener('message', (event) => {
                 structureToggle.classList.toggle('active', !!s.isStructureAware);
                 memorySlider.value = s.memoryLimit || 15;
                 memoryValue.textContent = `${memorySlider.value} msgs`;
+                if (s.isToolsEnabled) {
+                    isToolsEnabled = true;
+                    toolsToggle.classList.add('tools-active');
+                    toolsToggle.setAttribute('data-tooltip', 'Tool calls active — click to disable');
+                }
             }
             break;
 
@@ -428,10 +489,76 @@ window.addEventListener('message', (event) => {
 
         case 'set-thinking':
             thinkingName.textContent = msg.value || currentModelName || 'Glyph';
+            // Remove any stale tool activity
+            const existingActivity = thinkingIndicator.querySelector('.tool-activity-text');
+            if (existingActivity) existingActivity.remove();
             thinkingIndicator.classList.add('active');
             shouldAutoScroll = true;
             scrollToBottom();
             break;
+
+        case 'tool-activity': {
+            let activityEl = thinkingIndicator.querySelector('.tool-activity-text');
+            if (!activityEl) {
+                activityEl = document.createElement('span');
+                activityEl.className = 'tool-activity-text';
+                thinkingIndicator.appendChild(activityEl);
+            }
+            activityEl.textContent = msg.value;
+            break;
+        }
+
+        case 'tool-call-test-result': {
+            toolsToggle.classList.remove('tools-checking');
+            if (msg.supported) {
+                isToolsEnabled = true;
+                toolsToggle.classList.add('tools-active');
+                toolsToggle.classList.remove('tools-error');
+                toolsToggle.setAttribute('data-tooltip', 'Tool calls active — click to disable');
+                vscode.postMessage({ type: 'toggle-tools', value: true });
+            } else {
+                isToolsEnabled = false;
+                toolsToggle.classList.add('tools-error');
+                toolsToggle.classList.remove('tools-active');
+                toolsToggle.setAttribute('data-tooltip', 'This model does not support tool calls');
+                vscode.postMessage({ type: 'toggle-tools', value: false });
+            }
+            break;
+        }
+
+        case 'tool-permission-request': {
+            const { id, toolName, details } = msg.value;
+            
+            const block = document.createElement('div');
+            block.className = 'permission-block';
+            block.innerHTML = `
+                <div class="permission-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>Action Required</span>
+                </div>
+                <div class="permission-body">
+                    <p class="permission-desc"><strong>${toolName}</strong> is requesting permission from your host:</p>
+                    <div class="permission-details">${details}</div>
+                </div>
+                <div class="permission-actions">
+                    <button class="perm-btn perm-approve" data-id="${id}">Allow</button>
+                    <button class="perm-btn perm-deny" data-id="${id}">Deny</button>
+                </div>
+            `;
+            
+            chatContainer.appendChild(block);
+            shouldAutoScroll = true;
+            scrollToBottom();
+            
+            // Reset the current AI message element so any subsequent text chunks 
+            // after the tool executes will be appended in a new message bubble below this block!
+            currentAiMessageElement = null;
+            break;
+        }
 
         case 'stream-update':
             thinkingIndicator.classList.remove('active');

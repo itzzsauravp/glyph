@@ -427,6 +427,7 @@ textarea::placeholder {
     gap: 6px;
     flex: 1;
     min-width: 0;
+    flex-wrap: wrap; /* Allow wrapping as a last resort */
 }
 
 .controls-right {
@@ -652,11 +653,25 @@ textarea::placeholder {
     color: var(--text-muted);
     cursor: pointer;
     user-select: none;
-    padding: 5px 10px;
+    padding: 5px 8px; /* Slightly reduced padding */
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
     transition: all 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.pill-icon {
+    width: 13px;
+    height: 13px;
+    opacity: 0.7;
+    display: none; /* Hidden by default, shown in narrow mode */
+}
+
+.codebase-pill.active .pill-icon {
+    opacity: 1;
 }
 .codebase-pill:hover {
     background: rgba(255, 255, 255, 0.06);
@@ -918,5 +933,266 @@ textarea::placeholder {
     40% {
         transform: scale(1);
         opacity: 1;
+    }
+}
+
+/* ── Custom Tooltip System ──────────────────────── */
+[data-tooltip] {
+    position: relative;
+}
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: rgba(20, 20, 30, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 5px 9px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    z-index: 9999;
+}
+[data-tooltip]:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* ── Tools Pill States ───────────────────────────── */
+#tools-toggle.tools-active {
+    border-color: rgba(74, 222, 128, 0.5);
+    background: rgba(74, 222, 128, 0.08);
+    color: #4ade80;
+}
+#tools-toggle.tools-active .codebase-dot {
+    background: #4ade80;
+    box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+}
+#tools-toggle.tools-active:hover {
+    background: rgba(74, 222, 128, 0.14);
+}
+#tools-toggle.tools-error {
+    border-color: rgba(248, 113, 113, 0.5);
+    background: rgba(248, 113, 113, 0.08);
+    color: #f87171;
+}
+#tools-toggle.tools-error .codebase-dot {
+    background: #f87171;
+    box-shadow: 0 0 6px rgba(248, 113, 113, 0.6);
+}
+#tools-toggle.tools-error:hover {
+    background: rgba(248, 113, 113, 0.14);
+}
+#tools-toggle.tools-checking {
+    cursor: wait;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+#tools-toggle.tools-checking .codebase-dot {
+    background: transparent;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: tool-spin 0.8s linear infinite;
+    box-shadow: none;
+}
+@keyframes tool-spin {
+    to { transform: rotate(360deg); }
+}
+/* ── Tool Activity Indicator ─────────────────────── */
+.tool-activity-text {
+    font-size: 10px;
+    color: rgba(155, 109, 255, 0.8);
+    margin-left: 6px;
+    font-style: italic;
+    animation: tool-pulse 1.5s ease-in-out infinite;
+}
+@keyframes tool-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+/* ── Interactive Permission Block ─────────────────────── */
+.permission-block {
+    background: var(--message-bg-ai);
+    border: 1px solid var(--message-border);
+    border-radius: 6px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-main);
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.permission-block.resolved-approved .permission-header {
+    background: rgba(74, 222, 128, 0.1);
+    color: #4ade80;
+    border-bottom-color: rgba(74, 222, 128, 0.1);
+}
+
+.permission-block.resolved-denied .permission-header {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+.permission-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 171, 0, 0.1);
+    color: #ffb74d;
+    padding: 8px 12px;
+    font-weight: 500;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(255, 171, 0, 0.05);
+}
+
+.permission-body {
+    padding: 12px;
+}
+
+.permission-desc {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    color: var(--text-main);
+    opacity: 0.9;
+}
+
+.permission-details {
+    background: var(--input-bg);
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border: 1px solid var(--input-border);
+    color: var(--input-fg);
+}
+
+.permission-actions {
+    display: flex;
+    gap: 8px;
+    padding: 0 12px 12px 12px;
+}
+
+.perm-btn {
+    flex: 1;
+    padding: 6px 0;
+    border: none;
+    border-radius: 4px;
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.perm-approve {
+    background: var(--primary);
+    color: white;
+}
+.perm-approve:hover {
+    background: var(--primary-hover);
+}
+
+.perm-deny {
+    background: transparent;
+    border: 1px solid var(--message-border);
+    color: var(--text-main);
+}
+.perm-deny:hover {
+    background: var(--card-bg);
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.permission-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.perm-btn {
+    flex: 1;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.perm-btn:disabled {
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.perm-approve {
+    background: rgba(74, 222, 128, 0.1);
+    color: #4ade80;
+    border-color: rgba(74, 222, 128, 0.2);
+}
+.perm-approve:hover {
+    background: rgba(74, 222, 128, 0.2);
+}
+
+.perm-deny {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-color);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+.perm-deny:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+/* ── Responsive breakpoints ──────────────────────── */
+@media (max-width: 320px) {
+    .pill-label {
+        display: none;
+    }
+    
+    .pill-icon {
+        display: block;
+    }
+
+    .custom-dropdown {
+        min-width: 100px;
+        flex: 1;
+    }
+
+    .dropdown-trigger {
+        padding: 6px 8px;
+    }
+
+    .selected-text {
+        font-size: 10px;
+    }
+    
+    .codebase-pill {
+        padding: 5px 7px;
+    }
+}
+
+@media (max-width: 240px) {
+    .controls-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .controls-right {
+        justify-content: flex-end;
     }
 }
