@@ -36,6 +36,7 @@ let modelsData = {};
 let shouldAutoScroll = true;
 let isGenerating = false;
 let isToolsEnabled = false;
+let userDisabledTools = false;
 
 // ── SVG Icons ───────────────────────────────────────
 const COPY_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
@@ -80,15 +81,18 @@ toolsToggle.addEventListener('click', () => {
     if (toolsToggle.classList.contains('tools-checking')) return;
 
     if (isToolsEnabled) {
-        // Turn off
+        // Turn off — restore codebase toggle availability
         isToolsEnabled = false;
+        userDisabledTools = true;
         toolsToggle.classList.remove('tools-active', 'tools-error');
         toolsToggle.setAttribute('data-tooltip', 'Enable agentic tool calls (reads files, searches code)');
+        codebaseToggle.setAttribute('data-tooltip', 'Enable codebase-aware context (Vector RAG)');
         vscode.postMessage({ type: 'toggle-tools', value: false });
         return;
     }
 
     // Run capability test first
+    userDisabledTools = false;
     toolsToggle.classList.add('tools-checking');
     toolsToggle.setAttribute('data-tooltip', 'Testing tool call support…');
     vscode.postMessage({ type: 'test-tool-calls' });
@@ -212,7 +216,7 @@ function handleModelSelect(modelInfo) {
     closeDropdown();
 
     // Auto-run tool capability check on model change
-    if (toolsToggle && !toolsToggle.classList.contains('tools-checking')) {
+    if (!userDisabledTools && toolsToggle && !toolsToggle.classList.contains('tools-checking')) {
         toolsToggle.classList.add('tools-checking');
         toolsToggle.setAttribute('data-tooltip', 'Testing tool call support…');
         vscode.postMessage({ type: 'test-tool-calls' });
@@ -452,8 +456,11 @@ window.addEventListener('message', (event) => {
                 memoryValue.textContent = `${memorySlider.value} msgs`;
                 if (s.isToolsEnabled) {
                     isToolsEnabled = true;
+                    userDisabledTools = false;
                     toolsToggle.classList.add('tools-active');
                     toolsToggle.setAttribute('data-tooltip', 'Tool calls active — click to disable');
+                } else {
+                    userDisabledTools = true;
                 }
             }
             break;
@@ -516,6 +523,11 @@ window.addEventListener('message', (event) => {
                 toolsToggle.classList.remove('tools-error');
                 toolsToggle.setAttribute('data-tooltip', 'Tool calls active — click to disable');
                 vscode.postMessage({ type: 'toggle-tools', value: true });
+
+                // Auto-disable codebase RAG — tools replace vector search
+                codebaseToggle.classList.remove('active');
+                codebaseToggle.setAttribute('data-tooltip', 'Vector RAG disabled — using tool-based code reading');
+                vscode.postMessage({ type: 'toggle-codebase', value: false });
             } else {
                 isToolsEnabled = false;
                 toolsToggle.classList.add('tools-error');

@@ -397,7 +397,8 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
             }
 
             // Handle Codebase RAG (Specific Snippets)
-            if (isCodebaseAware) {
+            // When tools are active, the model reads files directly — skip RAG
+            if (isCodebaseAware && !isToolsEnabled) {
                 if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
                 augmentedContext += await this.buildCodebaseContext(payload.text, signal);
             }
@@ -418,18 +419,20 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
             });
 
             let constraintPrompt = '';
-            if (isCodebaseAware || isStructureAware) {
+            if (isToolsEnabled) {
+                constraintPrompt = `\nYou have codebase tools available. Use them proactively to read files and search code when needed to answer questions accurately. Do NOT guess file contents — always read them with tools first.`;
+            } else if (isCodebaseAware || isStructureAware) {
                 constraintPrompt = `\nCRITICAL INSTRUCTION: The user has enabled "Codebase" and/or "Structure" awareness. You MUST answer their questions strictly based on the provided project context or directory tree. If their question is completely unrelated to the provided codebase context, you MUST politely decline to answer and remind them that you are currently constrained to codebase-specific questions.`;
             }
 
             const toolsPrompt = isToolsEnabled
-                ? `\nTOOL CALLING: ACTIVE — You have access to codebase exploration tools. Use list_project_structure to understand the layout, read_file_content to inspect specific files, search_codebase for keyword search, and list_workspace_files to list available files. Always use these tools when you need more context before answering.
-CRITICAL TOOL INSTRUCTION: You MUST invoke these tools using the native tool calling schema execution provided by your API. DO NOT output raw JSON blocks or markdown inside your conversational text to call tools. ONLY execute them natively.`
+                ? `\nTOOL CALLING: ACTIVE — You have access to codebase tools. Read tools (list_project_structure, read_file_content, read_lines, search_codebase, grep_search, list_workspace_files) execute freely. Write tools (create_file, edit_file, run_command) require user permission.
+CRITICAL TOOL INSTRUCTION: You MUST invoke these tools using the native tool calling schema. DO NOT output raw JSON blocks or markdown inside your text to call tools. ONLY execute them natively via the tool calling API.`
                 : '';
 
             const systemPrompt = {
                 role: 'system' as const,
-                content: `You are Glyph, a coding assistant and model integrator created by Saurav Parajulee. Answer questions concisely and provide code block snippets when helpful. You are a versatile tool designed to bridge the gap between different AI providers and the developer's needs.\n\nCODEBASE CONTEXT AWARENESS: ${isCodebaseAware ? 'ACTIVE' : 'INACTIVE'}\nPROJECT STRUCTURE AWARENESS: ${isStructureAware ? 'ACTIVE' : 'INACTIVE'}${constraintPrompt}${toolsPrompt}\n${augmentedContext}`,
+                content: `You are Glyph, a coding assistant and model integrator created by Saurav Parajulee. Answer questions concisely and provide code block snippets when helpful. You are a versatile tool designed to bridge the gap between different AI providers and the developer's needs.\n\nCODEBASE CONTEXT AWARENESS: ${isCodebaseAware && !isToolsEnabled ? 'ACTIVE (RAG)' : isToolsEnabled ? 'ACTIVE (TOOLS)' : 'INACTIVE'}\nPROJECT STRUCTURE AWARENESS: ${isStructureAware ? 'ACTIVE' : 'INACTIVE'}${constraintPrompt}${toolsPrompt}\n${augmentedContext}`,
             };
 
             const messages = [systemPrompt, ...this.chatHistory];
@@ -445,7 +448,7 @@ CRITICAL TOOL INSTRUCTION: You MUST invoke these tools using the native tool cal
                     let processedOutput = assistantResponse;
                     
                     // Replace <think> and </think> with HTML details block
-                    processedOutput = processedOutput.replace(/<think>/g, '<details class="think-block" open><summary>Reasoning Process</summary><div class="think-content">');
+                    processedOutput = processedOutput.replace(/<think>/g, '<details class="think-block"><summary>Reasoning Process</summary><div class="think-content">');
                     processedOutput = processedOutput.replace(/<\/think>/g, '</div></details>');
 
                     // Prevent broken rendering if <think> hasn't been closed yet during streaming

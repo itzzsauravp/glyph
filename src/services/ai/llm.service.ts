@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { resolveAdapter } from '../../adapters';
 import type GlyphConfig from '../../config/glyph.config';
 import type { RepositoryIndexerService } from '../index';
+import { ToolRegistry } from './tools/ToolRegistry';
 
 /**
  * Service that interfaces with large language models through the Vercel AI SDK.
@@ -19,7 +20,9 @@ export default class LLMService {
     constructor(
         public readonly glyphConfig: GlyphConfig,
         public readonly workspaceTable: lancedb.Table,
-    ) {}
+    ) { }
+
+    private toolCapabilityCache = new Map<string, boolean>();
 
     private extractCode(text: string): string {
         const match = text.match(/```[a-zA-Z]*\s*\n?([\s\S]*?)```/);
@@ -448,10 +451,19 @@ ${contextSection}
 
     /**
      * Checks if the current model supports tool calling by making a lightweight
-     * test request with a dummy tool.
+     * test request with a dummy tool. Results are cached per model.
      */
     public async testToolCallSupport(): Promise<boolean> {
         try {
+            const config = this.glyphConfig.getExtensionConfig();
+            const cacheKey = `${config.providerType}::${config.model}`;
+
+            if (this.toolCapabilityCache.has(cacheKey)) {
+                const cached = this.toolCapabilityCache.get(cacheKey)!;
+                console.log(`[LLMService] Tool capability (cached): ${cached} for ${cacheKey}`);
+                return cached;
+            }
+
             const model = await this.getLanguageModel();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (generateText as any)({
@@ -466,13 +478,79 @@ ${contextSection}
                 },
                 maxSteps: 1,
             });
+
+            this.toolCapabilityCache.set(cacheKey, true);
+            console.log(`[LLMService] Tool capability: SUPPORTED for ${cacheKey}`);
             return true;
         } catch (error) {
             const msg = String(error);
             const isUnsupported =
                 msg.includes('tool') || msg.includes('function') || msg.includes('400');
             console.warn('[LLMService] Tool call test failed:', msg);
-            return !isUnsupported;
+            const result = !isUnsupported;
+
+            const config = this.glyphConfig.getExtensionConfig();
+            const cacheKey = `${config.providerType}::${config.model}`;
+            this.toolCapabilityCache.set(cacheKey, result);
+
+            return result;
+        }
+    }
+
+    /**
+     * Clears the cached tool capability results.
+     * Call this when the model or provider changes.
+     */
+    public clearToolCapabilityCache(): void {
+        this.toolCapabilityCache.clear();
+    }
+
+    /**
+     * Generates code using tool-based context gathering instead of RAG.
+     * The model uses read-only tools to explore the codebase, then generates code.
+     */
+    public async generateCodeWithTools(
+        prompt: string,
+        code: string,
+        languageId: string,
+        workspaceRoot: string,
+    ): Promise<string> {
+        try {
+            const model = await this.getLanguageModel();
+            const registry = new ToolRegistry(workspaceRoot);
+            const readTools = registry.getReadOnlyTools();
+
+            const systemPrompt = `
+You are a specialized programming assistant with access to the project's codebase via tools.
+Your task is to modify ONLY the provided code block in ${languageId} according to the instructions.
+
+WORKFLOW:
+1. FIRST, use the available tools to understand the project structure and read relevant files for context.
+2. THEN, generate the modified code based on what you learned.
+
+RULES:
+1. Return ONLY the modified code block as your final answer. Nothing else.
+2. Do NOT include markdown code blocks.
+3. Do NOT include any imports, headers, includes, require, or using statements.
+4. Do NOT re-implement functions that are called but not shown — just call them.
+5. Do NOT provide explanations, comments, or usage examples.
+6. Do not include any backticks.
+`;
+
+            console.log(`[LLMService] Generating code with tools: "${prompt.substring(0, 50)}..."`);
+
+            const { text } = await generateText({
+                model,
+                system: systemPrompt,
+                prompt: `Instructions: ${prompt}\n\nCode block to modify:\n${code}`,
+                tools: readTools,
+                maxSteps: 6,
+            });
+
+            console.log('[LLMService] Code generation with tools successful.');
+            return this.stripImports(this.extractCode(text));
+        } catch (error) {
+            this.handleError(error);
         }
     }
 
@@ -502,169 +580,8 @@ ${contextSection}
             const onRequestPermission = options?.onRequestPermission;
             const toolsEnabled = options?.toolsEnabled ?? false;
 
-            const listStructureParams = z.object({
-                depth: z.number().optional().describe('Max folder depth to show (default: 3)'),
-            });
-            const readFileParams = z.object({
-                relativePath: z.string().describe('The relative path of the file from the workspace root'),
-            });
-            const searchParams = z.object({
-                query: z.string().describe('The exact keyword or pattern to search for'),
-                fileGlob: z.string().optional().describe('Optional glob to narrow search (e.g. **/*.ts)'),
-            });
-            const listFilesParams = z.object({
-                glob: z.string().optional().describe('Glob pattern (default: **/*.ts)'),
-            });
-            
-            // New Agentic Write/Exec Tool Schemas
-            const createFileParams = z.object({
-                relativePath: z.string().describe('Path where the new file should be created'),
-                content: z.string().describe('The complete source code or content to write to the file'),
-            });
-            const editFileParams = z.object({
-                relativePath: z.string().describe('Path of the existing file to edit'),
-                content: z.string().describe('The complete new content that will overwrite the entire file'),
-            });
-            const runCommandParams = z.object({
-                command: z.string().describe('The terminal command to run (e.g., "npm install", "git status")'),
-            });
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const codebookTools: any = toolsEnabled
-                ? {
-                    list_project_structure: {
-                        description: 'Returns the directory tree of the workspace.',
-                        parameters: listStructureParams,
-                        execute: async (args: z.infer<typeof listStructureParams>) => {
-                            const { tree } = await import('tree-node-cli');
-                            return tree(workspaceRoot, {
-                                allFiles: true,
-                                exclude: [/node_modules/, /\.git/, /\.glyph/, /dist/, /out/],
-                                maxDepth: args.depth ?? 3,
-                                trailingSlash: true,
-                            });
-                        },
-                    },
-                    read_file_content: {
-                        description: 'Reads the full source content of a specific file in the workspace.',
-                        parameters: readFileParams,
-                        execute: async (args: z.infer<typeof readFileParams>) => {
-                            try {
-                                const absPath = path.resolve(workspaceRoot, args.relativePath);
-                                const content = nodeFs.readFileSync(absPath, 'utf-8');
-                                return content.slice(0, 20000);
-                            } catch {
-                                return `Error: Could not read file "${args.relativePath}".`;
-                            }
-                        },
-                    },
-                    search_codebase: {
-                        description: 'Performs a keyword text search across all source files. Returns matching lines with file paths.',
-                        parameters: searchParams,
-                        execute: async (args: z.infer<typeof searchParams>) => {
-                            try {
-                                const pattern = args.fileGlob ?? '**/*.{ts,js,py,go,rs,java,md}';
-                                const uris = await vscode.workspace.findFiles(pattern, '{node_modules,dist,.git}/**', 200);
-                                const results: string[] = [];
-                                for (const uri of uris) {
-                                    const doc = await vscode.workspace.openTextDocument(uri);
-                                    const rel = path.relative(workspaceRoot, uri.fsPath);
-                                    doc.getText().split('\n').forEach((line: string, i: number) => {
-                                        if (line.toLowerCase().includes(args.query.toLowerCase())) {
-                                            results.push(`${rel}:${i + 1}: ${line.trim()}`);
-                                        }
-                                    });
-                                    if (results.length > 100) break;
-                                }
-                                return results.length > 0
-                                    ? results.join('\n')
-                                    : `No matches found for "${args.query}"`;
-                            } catch (e) {
-                                return `Search error: ${String(e)}`;
-                            }
-                        },
-                    },
-                    list_workspace_files: {
-                        description: 'Lists all file paths in the workspace matching a glob pattern.',
-                        parameters: listFilesParams,
-                        execute: async (args: z.infer<typeof listFilesParams>) => {
-                            const pattern = args.glob ?? '**/*.{ts,js,py,go,rs,java,md,json}';
-                            const uris = await vscode.workspace.findFiles(pattern, '{node_modules,dist,.git}/**', 300);
-                            return uris.map((u: vscode.Uri) => path.relative(workspaceRoot, u.fsPath)).join('\n');
-                        },
-                    },
-                    create_file: {
-                        description: 'Creates a new file with the specified content. Requires user permission.',
-                        parameters: createFileParams,
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        execute: async (args: any) => {
-                            try {
-                                const relPath = args.relativePath || args.fileName || args.path || args.file;
-                                const content = args.content || args.code || args.source || '';
-                                
-                                if (!relPath) return 'Error: The LLM failed to provide a valid relative path.';
-                                if (!onRequestPermission) return 'Error: Permission system unavailable.';
-                                
-                                const approved = await onRequestPermission('create_file', `Create: ${relPath}`);
-                                if (!approved) return `User denied permission to create ${relPath}.`;
-                                
-                                const absPath = path.resolve(workspaceRoot, relPath);
-                                const dir = path.dirname(absPath);
-                                if (!nodeFs.existsSync(dir)) {
-                                    nodeFs.mkdirSync(dir, { recursive: true });
-                                }
-                                nodeFs.writeFileSync(absPath, content, 'utf-8');
-                                return `Successfully created file ${relPath}`;
-                            } catch (e) {
-                                return `Error creating file: ${String(e)}`;
-                            }
-                        },
-                    },
-                    edit_file: {
-                        description: 'Overwrites an existing file with new content. Requires user permission.',
-                        parameters: editFileParams,
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        execute: async (args: any) => {
-                            try {
-                                const relPath = args.relativePath || args.fileName || args.path || args.file;
-                                const content = args.content || args.code || args.source || '';
-
-                                if (!relPath) return 'Error: The LLM failed to provide a valid relative path.';
-                                if (!onRequestPermission) return 'Error: Permission system unavailable.';
-                                
-                                const approved = await onRequestPermission('edit_file', `Edit: ${relPath}`);
-                                if (!approved) return `User denied permission to edit ${relPath}.`;
-
-                                const absPath = path.resolve(workspaceRoot, relPath);
-                                if (!nodeFs.existsSync(absPath)) return `Error: File ${relPath} does not exist. Use create_file instead.`;
-                                nodeFs.writeFileSync(absPath, content, 'utf-8');
-                                return `Successfully updated file ${relPath}`;
-                            } catch (e) {
-                                return `Error editing file: ${String(e)}`;
-                            }
-                        },
-                    },
-                    run_command: {
-                        description: 'Runs a terminal command in the workspace. Requires user permission.',
-                        parameters: runCommandParams,
-                        execute: async (args: z.infer<typeof runCommandParams>) => {
-                            try {
-                                if (!onRequestPermission) return 'Error: Permission system unavailable.';
-                                const approved = await onRequestPermission('run_command', `Terminal: ${args.command}`);
-                                if (!approved) return `User denied permission to run command: ${args.command}`;
-
-                                const { stdout, stderr } = await execAsync(args.command, { cwd: workspaceRoot });
-                                const output = [];
-                                if (stdout) output.push(`STDOUT:\n${stdout.slice(0, 10000)}`);
-                                if (stderr) output.push(`STDERR:\n${stderr.slice(0, 10000)}`);
-                                return output.length > 0 ? output.join('\n') : 'Command executed successfully with no output.';
-                            } catch (e) {
-                                return `Command failed: ${String(e)}`;
-                            }
-                        },
-                    },
-                }
-                : undefined;
+            const registry = new ToolRegistry(workspaceRoot, onRequestPermission);
+            const codebookTools: any = toolsEnabled ? registry.getTools() : undefined;
 
             const result = streamText({
                 model,
@@ -677,14 +594,17 @@ ${contextSection}
                 },
                 onStepFinish(step) {
                     if (step.toolCalls && step.toolCalls.length > 0 && onActivity) {
-                        const toolName = step.toolCalls[0]?.toolName ?? 'tool';
+                        const toolCallAny = step.toolCalls[0] as any;
+                        const toolName = toolCallAny?.toolName ?? 'tool';
                         const friendlyNames: Record<string, string> = {
                             list_project_structure: '🗂️ Listing project structure...',
-                            read_file_content: `📖 Reading ${(step.toolCalls[0] as any)?.args?.relativePath ?? 'file'}...`,
-                            search_codebase: `🔍 Searching: "${(step.toolCalls[0] as any)?.args?.query ?? '...'}"`,
+                            read_file_content: `📖 Reading ${toolCallAny?.args?.relativePath ?? 'file'}...`,
+                            read_lines: `📖 Reading lines ${toolCallAny?.args?.relativePath ?? 'from file'}...`,
+                            search_codebase: `🔍 Searching: "${toolCallAny?.args?.query ?? '...'}"`,
+                            grep_search: `🔍 Grep: "${toolCallAny?.args?.regexPattern ?? '...'}"`,
                             list_workspace_files: '📁 Listing workspace files...',
-                            create_file: `📝 Creating ${(step.toolCalls[0] as any)?.args?.relativePath ?? 'file'}...`,
-                            edit_file: `💾 Updating ${(step.toolCalls[0] as any)?.args?.relativePath ?? 'file'}...`,
+                            create_file: `📝 Creating ${toolCallAny?.args?.relativePath ?? 'file'}...`,
+                            edit_file: `💾 Updating ${toolCallAny?.args?.relativePath ?? 'file'}...`,
                             run_command: `💻 Running command...`,
                         };
                         onActivity(friendlyNames[toolName] ?? `⚙️ Running ${toolName}...`);
@@ -720,6 +640,16 @@ ${contextSection}
                         onChunk(chunkInfo);
                         fullText += chunkInfo;
                     }
+                } else if (part.type === 'tool-call') {
+                    const argStr = JSON.stringify(partAny.args || {}, null, 2);
+                    const chunkInfo = `\n<details class="tool-block"><summary>🛠️ Executing: ${partAny.toolName}</summary>\n\n\`\`\`json\n${argStr}\n\`\`\`\n\n</details>\n`;
+                    onChunk(chunkInfo);
+                    fullText += chunkInfo;
+                } else if (part.type === 'tool-result') {
+                    const resStr = typeof partAny.result === 'string' ? partAny.result : JSON.stringify(partAny.result || {}, null, 2);
+                    const chunkInfo = `\n<details class="tool-block"><summary>✅ Result: ${partAny.toolName}</summary>\n\n\`\`\`text\n${resStr.slice(0, 1000)}${resStr.length > 1000 ? '...\n(truncated)' : ''}\n\`\`\`\n\n</details>\n`;
+                    onChunk(chunkInfo);
+                    fullText += chunkInfo;
                 }
             }
 

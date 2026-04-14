@@ -239,8 +239,8 @@ body {
     color: #34d399;
 }
 
-/* ── Thinking Process Block ──────────────────────── */
-.think-block {
+/* ── Thinking Process Block & Tool Outputs ──────────── */
+.think-block, .tool-block {
     margin: 8px 0;
     padding: 10px 12px;
     background: rgba(255, 255, 255, 0.03);
@@ -249,7 +249,7 @@ body {
     font-size: 11.5px;
     color: var(--text-muted);
 }
-.think-block summary {
+.think-block summary, .tool-block summary {
     cursor: pointer;
     font-weight: 600;
     font-size: 11px;
@@ -258,10 +258,10 @@ body {
     margin-bottom: 4px;
     transition: color 0.2s ease;
 }
-.think-block summary:hover {
+.think-block summary:hover, .tool-block summary:hover {
     color: rgba(255, 255, 255, 0.8);
 }
-.think-content {
+.think-content, .tool-content {
     margin-top: 6px;
     color: rgba(255, 255, 255, 0.45);
     line-height: 1.5;

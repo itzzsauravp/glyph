@@ -71,12 +71,26 @@ export default class GenerateCode extends BaseCommand {
 
             this.editorUI.showLoadingGhostText(editor, 'Generating', startPos);
 
-            const resultFromLLM = await this.llmService.generateWithProjectContext(
-                prompt,
-                codeContext,
-                editor.document.languageId,
-                this.repositoryIndexer,
-            );
+            // Hybrid execution: use tool-based code reading for capable models, RAG for others
+            let resultFromLLM: string;
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+            const supportsTools = workspaceRoot ? await this.llmService.testToolCallSupport() : false;
+
+            if (supportsTools) {
+                resultFromLLM = await this.llmService.generateCodeWithTools(
+                    prompt,
+                    codeContext,
+                    editor.document.languageId,
+                    workspaceRoot,
+                );
+            } else {
+                resultFromLLM = await this.llmService.generateWithProjectContext(
+                    prompt,
+                    codeContext,
+                    editor.document.languageId,
+                    this.repositoryIndexer,
+                );
+            }
 
             const tempRange = this.rangeTracker.getRange(tempTrackerId);
             if (tempRange) {
