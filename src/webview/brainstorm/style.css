@@ -239,8 +239,8 @@ body {
     color: #34d399;
 }
 
-/* ── Thinking Process Block & Tool Outputs ──────────── */
-.think-block, .tool-block {
+/* ── Thinking Process Block ─────────────────────────── */
+.think-block {
     margin: 8px 0;
     padding: 10px 12px;
     background: rgba(255, 255, 255, 0.03);
@@ -249,22 +249,58 @@ body {
     font-size: 11.5px;
     color: var(--text-muted);
 }
-.think-block summary, .tool-block summary {
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 11px;
-    user-select: none;
+.think-block strong {
+    display: block;
+    margin-bottom: 8px;
     color: rgba(255, 255, 255, 0.5);
-    margin-bottom: 4px;
-    transition: color 0.2s ease;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
-.think-block summary:hover, .tool-block summary:hover {
-    color: rgba(255, 255, 255, 0.8);
-}
-.think-content, .tool-content {
-    margin-top: 6px;
-    color: rgba(255, 255, 255, 0.45);
+.think-block p, .think-block pre, .think-block ul, .think-block ol {
+    margin-bottom: 6px;
+    margin-top: 0;
     line-height: 1.5;
+}
+.think-block *:last-child {
+    margin-bottom: 0;
+}
+
+/* ── Tool Step Indicators ──────────────────────────── */
+.tool-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0;
+    padding: 5px 10px;
+    background: rgba(155, 109, 255, 0.04);
+    border-left: 2px solid rgba(155, 109, 255, 0.25);
+    border-radius: 0 6px 6px 0;
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.4;
+    animation: fadeInUp 0.2s ease-out;
+}
+.tool-step code {
+    font-family: var(--vscode-editor-font-family, "Cascadia Code", monospace);
+    font-size: 11px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: rgba(255, 255, 255, 0.7);
+}
+.tool-step-indicator {
+    font-weight: 700;
+    font-size: 11px;
+    flex-shrink: 0;
+    color: rgba(155, 109, 255, 0.6);
+}
+.tool-step-done {
+    border-left-color: rgba(74, 222, 128, 0.3);
+    background: rgba(74, 222, 128, 0.04);
+}
+.tool-step-done .tool-step-indicator {
+    color: rgba(74, 222, 128, 0.7);
 }
 
 /* ── Code Blocks ─────────────────────────────────── */
@@ -1023,13 +1059,16 @@ textarea::placeholder {
 /* ── Interactive Permission Block ─────────────────────── */
 .permission-block {
     background: var(--message-bg-ai);
-    border: 1px solid var(--message-border);
-    border-radius: 6px;
+    border: 1px solid rgba(255, 171, 0, 0.3);
+    border-radius: 8px;
     margin-top: 10px;
     font-size: 13px;
     color: var(--text-main);
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 171, 0, 0.1);
+    position: sticky;
+    bottom: 8px;
+    z-index: 10;
 }
 
 .permission-block.resolved-approved .permission-header {
