@@ -1,11 +1,10 @@
 import path from 'node:path';
-import * as nodeFs from 'node:fs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 import type * as lancedb from '@lancedb/lancedb';
-import { embed, generateText, streamText, tool } from 'ai';
+import { embed, generateText, streamText, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import * as vscode from 'vscode';
 import { resolveAdapter } from '../../adapters';
@@ -334,7 +333,7 @@ ${contextSection}
     ): Promise<string[]> {
         try {
             const systemPrompt = `
-You are a senior software architect. 
+You are a senior software architect.
 Given a directory structure and a user's coding request, identify the specific files that likely contain the relevant logic, types, or context needed to complete the task.
 
 RULES:
@@ -465,35 +464,45 @@ ${contextSection}
             }
 
             const model = await this.getLanguageModel();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (generateText as any)({
+            await generateText({
                 model,
-                messages: [{ role: 'user', content: 'Say ok' }],
+                prompt: 'Respond with the ping tool.',
                 tools: {
-                    ping: {
-                        description: 'Used for capability testing',
-                        parameters: z.object({ ok: z.boolean().optional() }),
+                    ping: tool({
+                        description: 'Respond with pong',
+                        inputSchema: z.object({}),
                         execute: async () => 'pong',
-                    },
+                    }),
                 },
-                maxSteps: 1,
+                stopWhen: stepCountIs(2),
             });
 
             this.toolCapabilityCache.set(cacheKey, true);
             console.log(`[LLMService] Tool capability: SUPPORTED for ${cacheKey}`);
             return true;
         } catch (error) {
-            const msg = String(error);
-            const isUnsupported =
-                msg.includes('tool') || msg.includes('function') || msg.includes('400');
+            const msg = String(error).toLowerCase();
+            // Only classify as "unsupported" if the error clearly indicates tool/function calling
+            // is not available for this model — not generic network/auth failures.
+            const isToolUnsupported =
+                msg.includes('does not support tools') ||
+                msg.includes('does not support function') ||
+                msg.includes('tool use is not supported') ||
+                msg.includes('tools are not supported') ||
+                (msg.includes('400') && (msg.includes('tool') || msg.includes('function')));
+
             console.warn('[LLMService] Tool call test failed:', msg);
-            const result = !isUnsupported;
 
             const config = this.glyphConfig.getExtensionConfig();
             const cacheKey = `${config.providerType}::${config.model}`;
-            this.toolCapabilityCache.set(cacheKey, result);
 
-            return result;
+            if (isToolUnsupported) {
+                this.toolCapabilityCache.set(cacheKey, false);
+                return false;
+            }
+
+            // For non-tool-related errors (network, auth, etc.), don't cache — let it retry
+            return false;
         }
     }
 
@@ -544,7 +553,7 @@ RULES:
                 system: systemPrompt,
                 prompt: `Instructions: ${prompt}\n\nCode block to modify:\n${code}`,
                 tools: readTools,
-                maxSteps: 6,
+                stopWhen: stepCountIs(5),
             });
 
             console.log('[LLMService] Code generation with tools successful.');
@@ -582,12 +591,18 @@ RULES:
 
             const registry = new ToolRegistry(workspaceRoot, onRequestPermission);
             const codebookTools: any = toolsEnabled ? registry.getTools() : undefined;
+            
+            // AI SDK v3 handles system prompts reliably when passed via the `system` parameter.
+            // Some providers like Google Gemini throw errors or hallucinate if `role: system` is in the `messages` array.
+            const systemMsg = messages.find(m => m.role === 'system');
+            const chatMessages = messages.filter(m => m.role !== 'system');
 
             const result = streamText({
                 model,
-                messages,
+                system: systemMsg?.content,
+                messages: chatMessages,
                 abortSignal,
-                ...(codebookTools ? { tools: codebookTools, maxSteps: 6 } : {}),
+                ...(codebookTools ? { tools: codebookTools, stopWhen: stepCountIs(6) } : {}),
                 onError({ error }) {
                     console.error('[LLMService] Stream error:', error);
                     streamError = error instanceof Error ? error : new Error(String(error));
@@ -597,17 +612,17 @@ RULES:
                         const toolCallAny = step.toolCalls[0] as any;
                         const toolName = toolCallAny?.toolName ?? 'tool';
                         const friendlyNames: Record<string, string> = {
-                            list_project_structure: '🗂️ Listing project structure...',
-                            read_file_content: `📖 Reading ${toolCallAny?.args?.relativePath ?? 'file'}...`,
-                            read_lines: `📖 Reading lines ${toolCallAny?.args?.relativePath ?? 'from file'}...`,
-                            search_codebase: `🔍 Searching: "${toolCallAny?.args?.query ?? '...'}"`,
-                            grep_search: `🔍 Grep: "${toolCallAny?.args?.regexPattern ?? '...'}"`,
-                            list_workspace_files: '📁 Listing workspace files...',
-                            create_file: `📝 Creating ${toolCallAny?.args?.relativePath ?? 'file'}...`,
-                            edit_file: `💾 Updating ${toolCallAny?.args?.relativePath ?? 'file'}...`,
-                            run_command: `💻 Running command...`,
+                            list_project_structure: '▸ Scanning project tree…',
+                            read_file_content: `▸ Reading ${toolCallAny?.args?.relativePath ?? 'file'}…`,
+                            read_lines: `▸ Reading lines from ${toolCallAny?.args?.relativePath ?? 'file'}…`,
+                            search_codebase: `▸ Searching: "${toolCallAny?.args?.query ?? '…'}"`,
+                            grep_search: `▸ Grep: /${toolCallAny?.args?.regexPattern ?? '…'}/`,
+                            list_workspace_files: '▸ Listing workspace files…',
+                            create_file: `▸ Creating ${toolCallAny?.args?.relativePath ?? 'file'}…`,
+                            edit_file: `▸ Editing ${toolCallAny?.args?.relativePath ?? 'file'}…`,
+                            run_command: `▸ Running: ${(toolCallAny?.args?.command ?? '…').slice(0, 40)}`,
                         };
-                        onActivity(friendlyNames[toolName] ?? `⚙️ Running ${toolName}...`);
+                        onActivity(friendlyNames[toolName] ?? `▸ ${toolName}…`);
                     }
                 },
             });
@@ -615,6 +630,7 @@ RULES:
             let chunkCount = 0;
             let reasoningStarted = false;
             let fullText = '';
+            let lastEmittedState = '';
 
             for await (const part of result.fullStream) {
                 const partAny = part as any;
@@ -623,6 +639,10 @@ RULES:
                         onChunk('</think>\n\n');
                         fullText += '</think>\n\n';
                         reasoningStarted = false;
+                    }
+                    if (lastEmittedState !== 'generating' && onActivity) {
+                        onActivity('Generating…');
+                        lastEmittedState = 'generating';
                     }
                     chunkCount++;
                     const chunkInfo = partAny.textDelta || partAny.text || '';
@@ -634,6 +654,10 @@ RULES:
                         fullText += '<think>\n';
                         reasoningStarted = true;
                     }
+                    if (lastEmittedState !== 'thinking' && onActivity) {
+                        onActivity('Thinking…');
+                        lastEmittedState = 'thinking';
+                    }
                     if (part.type === 'reasoning-delta') {
                         chunkCount++;
                         const chunkInfo = partAny.textDelta || partAny.reasoning || partAny.delta || '';
@@ -641,15 +665,26 @@ RULES:
                         fullText += chunkInfo;
                     }
                 } else if (part.type === 'tool-call') {
-                    const argStr = JSON.stringify(partAny.args || {}, null, 2);
-                    const chunkInfo = `\n<details class="tool-block"><summary>🛠️ Executing: ${partAny.toolName}</summary>\n\n\`\`\`json\n${argStr}\n\`\`\`\n\n</details>\n`;
+                    const toolLabel = this.formatToolCallLabel(partAny.toolName, partAny.args);
+                    const chunkInfo = `\n<div class="tool-step"><span class="tool-step-indicator">▸</span> ${toolLabel}</div>\n`;
                     onChunk(chunkInfo);
                     fullText += chunkInfo;
+                    // Update indicator with tool-specific activity
+                    if (onActivity) {
+                        const plainLabel = toolLabel.replace(/<\/?code>/g, '');
+                        onActivity(`▸ ${plainLabel}`);
+                        lastEmittedState = 'tool';
+                    }
                 } else if (part.type === 'tool-result') {
-                    const resStr = typeof partAny.result === 'string' ? partAny.result : JSON.stringify(partAny.result || {}, null, 2);
-                    const chunkInfo = `\n<details class="tool-block"><summary>✅ Result: ${partAny.toolName}</summary>\n\n\`\`\`text\n${resStr.slice(0, 1000)}${resStr.length > 1000 ? '...\n(truncated)' : ''}\n\`\`\`\n\n</details>\n`;
+                    const summary = this.formatToolResultSummary(partAny.toolName, partAny.result);
+                    const chunkInfo = `\n<div class="tool-step tool-step-done"><span class="tool-step-indicator">✓</span> ${summary}</div>\n`;
                     onChunk(chunkInfo);
                     fullText += chunkInfo;
+                    // Show processing state while model processes tool results
+                    if (onActivity) {
+                        onActivity('Processing…');
+                        lastEmittedState = 'processing';
+                    }
                 }
             }
 
@@ -675,5 +710,101 @@ RULES:
         } catch (error) {
             this.handleError(error);
         }
+    }
+
+    // ── Tool Display Helpers ──────────────────────────────────────
+
+    /**
+     * Generates a human-readable one-liner for a tool call.
+     * e.g. "Reading src/services/ai/llm.service.ts"
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private formatToolCallLabel(toolName: string, args: any): string {
+        switch (toolName) {
+            case 'list_project_structure':
+                return `Scanning project tree${args?.depth ? ` (depth ${args.depth})` : ''}`;
+            case 'read_file_content':
+                return `Reading <code>${args?.relativePath || 'file'}</code>`;
+            case 'read_lines': {
+                const file = args?.relativePath || 'file';
+                const hasLines = args?.startLine != null && args?.endLine != null;
+                return hasLines
+                    ? `Reading lines ${args.startLine}\u2013${args.endLine} of <code>${file}</code>`
+                    : `Reading lines from <code>${file}</code>`;
+            }
+            case 'search_codebase':
+                return `Searching for <code>${args?.query || '…'}</code>`;
+            case 'grep_search':
+                return `Grep <code>/${args?.regexPattern || '…'}/</code>`;
+            case 'list_workspace_files':
+                return `Listing files${args?.glob ? ` matching <code>${args.glob}</code>` : ''}`;
+            case 'create_file':
+                return `Creating <code>${args?.relativePath || 'file'}</code>`;
+            case 'edit_file':
+                return `Editing <code>${args?.relativePath || 'file'}</code>`;
+            case 'run_command':
+                return `Running <code>${(args?.command || '…').slice(0, 60)}</code>`;
+            default:
+                return toolName;
+        }
+    }
+
+    /**
+     * Generates a compact summary for a tool result.
+     * Avoids dumping raw file contents or huge JSON payloads into the chat.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private formatToolResultSummary(toolName: string, result: any): string {
+        const text = typeof result === 'string' ? result : JSON.stringify(result ?? '');
+
+        // Empty or trivial results
+        if (!text || text === '{}' || text === '""' || text === 'undefined') {
+            return 'Done';
+        }
+
+        // Error results — show them
+        if (text.startsWith('Error:') || text.startsWith('Error creating') || text.startsWith('Error editing')) {
+            return text.length > 120 ? text.slice(0, 120) + '…' : text;
+        }
+
+        // Read tools — show line count
+        if (toolName === 'read_file_content' || toolName === 'read_lines') {
+            const lineCount = text.split('\n').length;
+            return `${lineCount} line${lineCount !== 1 ? 's' : ''} read`;
+        }
+
+        // Search tools — show match count
+        if (toolName === 'search_codebase' || toolName === 'grep_search') {
+            if (text.startsWith('No matches')) return 'No matches';
+            const matchCount = text.split('\n').filter(l => l.trim()).length;
+            return `${matchCount} match${matchCount !== 1 ? 'es' : ''} found`;
+        }
+
+        // List tools — show file count
+        if (toolName === 'list_workspace_files') {
+            const fileCount = text.split('\n').filter(l => l.trim()).length;
+            return `${fileCount} file${fileCount !== 1 ? 's' : ''} listed`;
+        }
+
+        // Project structure — show briefly
+        if (toolName === 'list_project_structure') {
+            const dirCount = text.split('\n').length;
+            return `${dirCount} entries in tree`;
+        }
+
+        // Write/execute tools — show success message or truncate
+        if (text.startsWith('Successfully')) {
+            return text;
+        }
+
+        // Command output — truncate
+        if (toolName === 'run_command') {
+            const preview = text.slice(0, 120).replace(/\n/g, ' ');
+            return text.length > 120 ? preview + '…' : preview;
+        }
+
+        // Fallback — very short preview
+        const preview = text.slice(0, 80).replace(/\n/g, ' ');
+        return text.length > 80 ? preview + '…' : preview;
     }
 }
