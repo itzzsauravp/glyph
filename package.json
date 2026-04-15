@@ -115,6 +115,11 @@
                     ],
                     "default": "Ollama",
                     "description": "Choose the LLM provider to use."
+                },
+                "glyph.agent.requireToolPermission": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Require explicit confirmation before executing agentic tool actions (like creating/editing files). Disable to auto-grant all tool permissions."
                 }
             }
         },
