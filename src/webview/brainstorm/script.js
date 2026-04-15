@@ -499,19 +499,43 @@ window.addEventListener('message', (event) => {
             // Remove any stale tool activity
             const existingActivity = thinkingIndicator.querySelector('.tool-activity-text');
             if (existingActivity) existingActivity.remove();
+            // Update label to generic working state
+            const statusSpan = thinkingIndicator.querySelector('.thinking-status');
+            if (statusSpan) statusSpan.textContent = 'is working…';
             thinkingIndicator.classList.add('active');
             shouldAutoScroll = true;
             scrollToBottom();
             break;
 
         case 'tool-activity': {
-            let activityEl = thinkingIndicator.querySelector('.tool-activity-text');
-            if (!activityEl) {
-                activityEl = document.createElement('span');
-                activityEl.className = 'tool-activity-text';
-                thinkingIndicator.appendChild(activityEl);
+            // Update the status label based on the activity type
+            const statusEl = thinkingIndicator.querySelector('.thinking-status');
+            const activityText = msg.value || '';
+            if (statusEl) {
+                if (activityText === 'Thinking…') {
+                    statusEl.textContent = 'is thinking…';
+                } else if (activityText === 'Generating…') {
+                    statusEl.textContent = 'is generating…';
+                } else if (activityText === 'Processing…') {
+                    statusEl.textContent = 'is processing…';
+                } else {
+                    statusEl.textContent = 'is working…';
+                }
             }
-            activityEl.textContent = msg.value;
+            // Show tool-specific activity text for tool operations
+            let activityEl = thinkingIndicator.querySelector('.tool-activity-text');
+            if (activityText.startsWith('▸') || activityText.startsWith('Processing')) {
+                if (!activityEl) {
+                    activityEl = document.createElement('span');
+                    activityEl.className = 'tool-activity-text';
+                    thinkingIndicator.appendChild(activityEl);
+                }
+                activityEl.textContent = activityText;
+            } else if (activityEl) {
+                activityEl.remove();
+            }
+            // Make sure indicator stays visible
+            thinkingIndicator.classList.add('active');
             break;
         }
 
@@ -541,39 +565,51 @@ window.addEventListener('message', (event) => {
         case 'tool-permission-request': {
             const { id, toolName, details } = msg.value;
             
-            const block = document.createElement('div');
-            block.className = 'permission-block';
-            block.innerHTML = `
-                <div class="permission-header">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="8" x2="12" y2="12"></line>
-                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <span>Action Required</span>
-                </div>
-                <div class="permission-body">
-                    <p class="permission-desc"><strong>${toolName}</strong> is requesting permission from your host:</p>
-                    <div class="permission-details">${details}</div>
-                </div>
-                <div class="permission-actions">
-                    <button class="perm-btn perm-approve" data-id="${id}">Allow</button>
-                    <button class="perm-btn perm-deny" data-id="${id}">Deny</button>
-                </div>
-            `;
+            if (currentAiMessageElement) {
+                const tools = currentAiMessageElement.querySelectorAll('.tool-step');
+                const lastTool = tools[tools.length - 1];
+                if (lastTool) {
+                    lastTool.classList.add('dropdown-tool-step');
+                    lastTool.style.display = 'block'; // Override flex
+                    
+                    const originalText = lastTool.innerHTML.replace(/<span class="tool-step-indicator">▸<\/span>/g, '').trim();
+                    
+                    lastTool.innerHTML = `
+                        <details class="permission-dropdown" open>
+                            <summary class="permission-summary" style="cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600; color: #facc15;">
+                                <span class="tool-step-indicator" style="color: #facc15;">⚠️</span> 
+                                <span>${originalText} (Action Required - Click to collapse)</span>
+                            </summary>
+                            <div class="permission-block" style="margin-top: 8px; border: 1px solid rgba(250, 204, 21, 0.3); border-radius: 6px; padding: 10px; background: rgba(250, 204, 21, 0.05);">
+                                <div class="permission-header" style="display: flex; gap: 6px; align-items: center; margin-bottom: 8px; color: #facc15;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                    </svg>
+                                    <span>Permission Required</span>
+                                </div>
+                                <div class="permission-body" style="margin-bottom: 12px; font-size: 11.5px;">
+                                    <p class="permission-desc" style="margin: 0 0 4px 0; color: var(--text-main);"><strong>${toolName}</strong> is requesting permission from your host:</p>
+                                    <div class="permission-details" style="font-family: var(--vscode-editor-font-family); background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; color: var(--text-muted);">${details}</div>
+                                </div>
+                                <div class="permission-actions" style="display: flex; gap: 8px;">
+                                    <button class="perm-btn perm-approve" data-id="${id}" style="background: #22c55e; color: #fff; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer;">Allow</button>
+                                    <button class="perm-btn perm-deny" data-id="${id}" style="background: #ef4444; color: #fff; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer;">Deny</button>
+                                </div>
+                            </div>
+                        </details>
+                    `;
+                }
+            }
             
-            chatContainer.appendChild(block);
             shouldAutoScroll = true;
             scrollToBottom();
-            
-            // Reset the current AI message element so any subsequent text chunks 
-            // after the tool executes will be appended in a new message bubble below this block!
-            currentAiMessageElement = null;
             break;
         }
 
         case 'stream-update':
-            thinkingIndicator.classList.remove('active');
+            // Keep thinking indicator active during generation — don't hide it here
             if (!currentAiMessageElement) {
                 currentAiMessageElement = appendMessage('ai');
             }
@@ -583,6 +619,9 @@ window.addEventListener('message', (event) => {
 
         case 'generation-complete':
             thinkingIndicator.classList.remove('active');
+            // Clean up tool activity text
+            const remainingActivity = thinkingIndicator.querySelector('.tool-activity-text');
+            if (remainingActivity) remainingActivity.remove();
             currentAiMessageElement = null;
             isGenerating = false;
             sendBtn.classList.remove('cancel-mode');
