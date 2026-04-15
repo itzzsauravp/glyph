@@ -50,7 +50,7 @@ export class ToolRegistry {
         return {
             list_project_structure: tool({
                 description: 'Returns the directory tree of the workspace.',
-                parameters: z.object({
+                inputSchema: z.object({
                     depth: z.number().optional().describe('Max folder depth to show (default: 3)'),
                 }),
                 execute: async (args) => {
@@ -69,7 +69,7 @@ export class ToolRegistry {
             }),
             read_file_content: tool({
                 description: 'Reads the full source content of a specific file in the workspace.',
-                parameters: z.object({
+                inputSchema: z.object({
                     relativePath: z.string().describe('The relative path of the file from the workspace root'),
                 }),
                 execute: async (args) => {
@@ -85,7 +85,7 @@ export class ToolRegistry {
             }),
             read_lines: tool({
                 description: 'Reads specific lines from a file in the workspace.',
-                parameters: z.object({
+                inputSchema: z.object({
                     relativePath: z.string().describe('The relative path of the file'),
                     startLine: z.number().describe('1-based index for the start line'),
                     endLine: z.number().describe('1-based index for the end line'),
@@ -105,7 +105,7 @@ export class ToolRegistry {
             }),
             search_codebase: tool({
                 description: 'Performs a keyword text search across all source files.',
-                parameters: z.object({
+                inputSchema: z.object({
                     query: z.string().describe('The exact keyword or pattern to search for'),
                     fileGlob: z.string().optional().describe('Optional glob to narrow search'),
                 }),
@@ -133,7 +133,7 @@ export class ToolRegistry {
             }),
             grep_search: tool({
                 description: 'Performs regex text search.',
-                parameters: z.object({
+                inputSchema: z.object({
                     regexPattern: z.string().describe('The regex pattern to search for'),
                     fileGlob: z.string().optional().describe('Optional glob to narrow search'),
                 }),
@@ -162,7 +162,7 @@ export class ToolRegistry {
             }),
             list_workspace_files: tool({
                 description: 'Lists all file paths in the workspace matching a glob pattern.',
-                parameters: z.object({
+                inputSchema: z.object({
                     glob: z.string().optional().describe('Glob pattern (default: **/*.ts)'),
                 }),
                 execute: async (args) => {
@@ -185,7 +185,7 @@ export class ToolRegistry {
         return {
             create_file: tool({
                 description: 'Creates a new file with the specified content. Requires user permission.',
-                parameters: z.object({
+                inputSchema: z.object({
                     relativePath: z.string().describe('Path where the new file should be created'),
                     content: z.string().describe('The complete source code or content to write to the file'),
                 }),
@@ -210,7 +210,7 @@ export class ToolRegistry {
             }),
             edit_file: tool({
                 description: 'Overwrites an existing file with new content. Requires user permission.',
-                parameters: z.object({
+                inputSchema: z.object({
                     relativePath: z.string().describe('Path of the existing file to edit'),
                     content: z.string().describe('The complete new content that will overwrite the entire file'),
                 }),
@@ -232,7 +232,7 @@ export class ToolRegistry {
             }),
             run_command: tool({
                 description: 'Runs a terminal command in the workspace. Requires user permission.',
-                parameters: z.object({
+                inputSchema: z.object({
                     command: z.string().describe('The terminal command to run'),
                 }),
                 execute: async (args) => {
