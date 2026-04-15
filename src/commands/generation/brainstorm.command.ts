@@ -183,6 +183,12 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                     this.activeAbortController.abort();
                     this.activeAbortController = null;
                 }
+                
+                // Reject all pending tool permission requests
+                for (const resolve of this.permissionPromises.values()) {
+                    resolve(false);
+                }
+                this.permissionPromises.clear();
                 break;
             }
 
@@ -425,9 +431,14 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                 constraintPrompt = `\nCRITICAL INSTRUCTION: The user has enabled "Codebase" and/or "Structure" awareness. You MUST answer their questions strictly based on the provided project context or directory tree. If their question is completely unrelated to the provided codebase context, you MUST politely decline to answer and remind them that you are currently constrained to codebase-specific questions.`;
             }
 
+            const requirePermission = vscode.workspace.getConfiguration('glyph').get<boolean>('agent.requireToolPermission', true);
+            const permissionGatingText = requirePermission 
+                ? 'are gated by the system. The user will be automatically prompted for approval when you invoke them.'
+                : 'are fully unrestricted and will execute immediately.';
+
             const toolsPrompt = isToolsEnabled
-                ? `\nTOOL CALLING: ACTIVE — You have access to codebase tools. Read tools (list_project_structure, read_file_content, read_lines, search_codebase, grep_search, list_workspace_files) execute freely. Write tools (create_file, edit_file, run_command) require user permission.
-CRITICAL TOOL INSTRUCTION: You MUST invoke these tools using the native tool calling schema. DO NOT output raw JSON blocks or markdown inside your text to call tools. ONLY execute them natively via the tool calling API.`
+                ? `\nTOOL CALLING: ACTIVE — You have access to codebase tools. Read tools (list_project_structure, read_file_content, read_lines, search_codebase, grep_search, list_workspace_files) execute freely. Write tools (create_file, edit_file, run_command) ${permissionGatingText}
+CRITICAL TOOL INSTRUCTION: You MUST invoke tools using the native tool calling API. DO NOT ask the user for permission verbally before using a tool. JUST INVOKE THE TOOL directly. The system handles all permission dialogues.`
                 : '';
 
             const systemPrompt = {
@@ -447,13 +458,13 @@ CRITICAL TOOL INSTRUCTION: You MUST invoke these tools using the native tool cal
                     
                     let processedOutput = assistantResponse;
                     
-                    // Replace <think> and </think> with HTML details block
-                    processedOutput = processedOutput.replace(/<think>/g, '<details class="think-block"><summary>Reasoning Process</summary><div class="think-content">');
-                    processedOutput = processedOutput.replace(/<\/think>/g, '</div></details>');
+                    // Replace <think> and </think> with an open HTML block for styling
+                    processedOutput = processedOutput.replace(/<think>/g, '<div class="think-block"><strong>Thinking Process</strong>\n\n');
+                    processedOutput = processedOutput.replace(/<\/think>/g, '\n\n</div>');
 
                     // Prevent broken rendering if <think> hasn't been closed yet during streaming
                     if (assistantResponse.includes('<think>') && !assistantResponse.includes('</think>')) {
-                        processedOutput += '</div></details>';
+                        processedOutput += '\n\n</div>';
                     }
 
                     const renderedHtml = this.md.render(processedOutput);
@@ -472,6 +483,11 @@ CRITICAL TOOL INSTRUCTION: You MUST invoke these tools using the native tool cal
                         });
                     },
                     onRequestPermission: (toolName: string, details: string) => {
+                        const requirePermission = vscode.workspace.getConfiguration('glyph').get<boolean>('agent.requireToolPermission', true);
+                        if (!requirePermission) {
+                            return Promise.resolve(true);
+                        }
+
                         return new Promise<boolean>((resolve) => {
                             const id = Math.random().toString(36).substr(2, 9);
                             this.permissionPromises.set(id, resolve);
