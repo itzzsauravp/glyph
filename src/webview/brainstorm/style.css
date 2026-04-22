@@ -249,15 +249,31 @@ body {
     font-size: 11.5px;
     color: var(--text-muted);
 }
-.think-block strong {
-    display: block;
-    margin-bottom: 8px;
+.think-block summary {
+    cursor: pointer;
+    margin-bottom: 0px;
     color: rgba(255, 255, 255, 0.5);
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    outline: none;
+    user-select: none;
 }
-.think-block p, .think-block pre, .think-block ul, .think-block ol {
+.think-block summary:hover {
+    color: rgba(255, 255, 255, 0.8);
+}
+.think-block[open] summary {
+    margin-bottom: 8px;
+}
+.think-content {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+.think-block p,
+.think-block pre,
+.think-block ul,
+.think-block ol {
     margin-bottom: 6px;
     margin-top: 0;
     line-height: 1.5;
@@ -268,11 +284,7 @@ body {
 
 /* ── Tool Step Indicators ──────────────────────────── */
 .tool-step {
-    display: flex;
-    align-items: center;
-    gap: 6px;
     margin: 4px 0;
-    padding: 5px 10px;
     background: rgba(155, 109, 255, 0.04);
     border-left: 2px solid rgba(155, 109, 255, 0.25);
     border-radius: 0 6px 6px 0;
@@ -280,6 +292,33 @@ body {
     color: rgba(255, 255, 255, 0.55);
     line-height: 1.4;
     animation: fadeInUp 0.2s ease-out;
+}
+.tool-step-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    outline: none;
+    user-select: none;
+}
+.tool-step-summary:hover {
+    background: rgba(155, 109, 255, 0.08);
+}
+.tool-step-details {
+    padding: 0 10px 10px;
+    margin-top: 4px;
+}
+.tool-step-details pre {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: var(--vscode-editor-font-family, "Cascadia Code", monospace);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: pre-wrap;
+    word-break: break-all;
 }
 .tool-step code {
     font-family: var(--vscode-editor-font-family, "Cascadia Code", monospace);
@@ -994,7 +1033,9 @@ textarea::placeholder {
     white-space: nowrap;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.15s ease, transform 0.15s ease;
+    transition:
+        opacity 0.15s ease,
+        transform 0.15s ease;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     z-index: 9999;
 }
@@ -1041,7 +1082,9 @@ textarea::placeholder {
     box-shadow: none;
 }
 @keyframes tool-spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 /* ── Tool Activity Indicator ─────────────────────── */
 .tool-activity-text {
@@ -1052,8 +1095,13 @@ textarea::placeholder {
     animation: tool-pulse 1.5s ease-in-out infinite;
 }
 @keyframes tool-pulse {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
+    0%,
+    100% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
 }
 
 /* ── Interactive Permission Block ─────────────────────── */
@@ -1065,7 +1113,9 @@ textarea::placeholder {
     font-size: 13px;
     color: var(--text-main);
     overflow: hidden;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 171, 0, 0.1);
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.25),
+        0 0 0 1px rgba(255, 171, 0, 0.1);
     position: sticky;
     bottom: 8px;
     z-index: 10;
@@ -1201,7 +1251,7 @@ textarea::placeholder {
     .pill-label {
         display: none;
     }
-    
+
     .pill-icon {
         display: block;
     }
@@ -1218,7 +1268,7 @@ textarea::placeholder {
     .selected-text {
         font-size: 10px;
     }
-    
+
     .codebase-pill {
         padding: 5px 7px;
     }
@@ -1230,7 +1280,7 @@ textarea::placeholder {
         align-items: stretch;
         gap: 10px;
     }
-    
+
     .controls-right {
         justify-content: flex-end;
     }

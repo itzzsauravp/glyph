@@ -1,12 +1,13 @@
-import path from 'node:path';
 import { exec } from 'node:child_process';
+import path from 'node:path';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
+
 import type * as lancedb from '@lancedb/lancedb';
-import { embed, generateText, streamText, tool, stepCountIs } from 'ai';
-import { z } from 'zod';
+import { embed, generateText, stepCountIs, streamText, tool } from 'ai';
 import * as vscode from 'vscode';
+import { z } from 'zod';
 import { resolveAdapter } from '../../adapters';
 import type GlyphConfig from '../../config/glyph.config';
 import type { RepositoryIndexerService } from '../index';
@@ -19,9 +20,89 @@ export default class LLMService {
     constructor(
         public readonly glyphConfig: GlyphConfig,
         public readonly workspaceTable: lancedb.Table,
-    ) { }
+    ) {}
 
     private toolCapabilityCache = new Map<string, boolean>();
+
+    // ── Reasoning / Thinking Support ────────────────────────────────
+
+    /**
+     * Builds provider-specific options to enable reasoning/thinking output
+     * for models that support it. Each cloud provider uses a different
+     * configuration key:
+     *
+     *   Anthropic  → `thinking.type: 'enabled'`  (Claude 3.7+)
+     *   Google     → `thinkingConfig.thinkingBudget`  (Gemini 2.5+)
+     *   OpenAI     → `reasoningEffort`  (o-series models)
+     *
+     * Local providers (Ollama, LM Studio) emit `<think>` tags inside
+     * regular text content, so they don't need provider options.
+     *
+     * Returns `undefined` when the current model doesn't support reasoning.
+     */
+    private getReasoningProviderOptions(): Record<string, any> | undefined {
+        const config = this.glyphConfig.getExtensionConfig();
+        const modelName = (config.model || '').toLowerCase();
+        const providerType = config.providerType;
+
+        switch (providerType) {
+            case 'Anthropic': {
+                // Claude 3.7 Sonnet and later models support extended thinking
+                if (
+                    modelName.includes('claude-3-7') ||
+                    modelName.includes('claude-4') ||
+                    modelName.includes('claude-sonnet-4')
+                ) {
+                    console.log(
+                        `[LLMService] Enabling Anthropic extended thinking for ${config.model}`,
+                    );
+                    return {
+                        anthropic: {
+                            thinking: { type: 'enabled', budgetTokens: 10000 },
+                        },
+                    };
+                }
+                return undefined;
+            }
+
+            case 'Google':
+            case 'Gemini': {
+                // Gemini 2.5+ and 3.x models support thinking
+                if (modelName.includes('gemini-2.5') || modelName.includes('gemini-3')) {
+                    console.log(`[LLMService] Enabling Google thinking for ${config.model}`);
+                    return {
+                        google: {
+                            thinkingConfig: { thinkingBudget: 8192 },
+                        },
+                    };
+                }
+                return undefined;
+            }
+
+            case 'OpenAI': {
+                // o-series reasoning models (o1, o3, o4-mini, etc.)
+                if (
+                    modelName.startsWith('o1') ||
+                    modelName.startsWith('o3') ||
+                    modelName.startsWith('o4')
+                ) {
+                    console.log(`[LLMService] Enabling OpenAI reasoning for ${config.model}`);
+                    return {
+                        openai: {
+                            reasoningEffort: 'medium',
+                        },
+                    };
+                }
+                return undefined;
+            }
+
+            // OpenRouter and local providers: reasoning is either handled
+            // via <think> tags in the text stream (Qwen, DeepSeek) or
+            // through native provider passthrough. No extra config needed.
+            default:
+                return undefined;
+        }
+    }
 
     private extractCode(text: string): string {
         const match = text.match(/```[a-zA-Z]*\s*\n?([\s\S]*?)```/);
@@ -83,7 +164,9 @@ export default class LLMService {
                     embeddingModelName = 'nomic-ai/nomic-embed-text';
                     break;
                 case 'Anthropic':
-                    throw new Error('Anthropic does not provide native embeddings via AI SDK. Please set a custom embedding model in Glyph settings.');
+                    throw new Error(
+                        'Anthropic does not provide native embeddings via AI SDK. Please set a custom embedding model in Glyph settings.',
+                    );
                 default:
                     if (adapter.isLocal) {
                         embeddingModelName = 'nomic-embed-text';
@@ -165,7 +248,10 @@ export default class LLMService {
         }
     }
 
-    public async generateEmbeddings(content: string | Array<string>, abortSignal?: AbortSignal): Promise<number[]> {
+    public async generateEmbeddings(
+        content: string | Array<string>,
+        abortSignal?: AbortSignal,
+    ): Promise<number[]> {
         try {
             const embeddingModel = await this.getEmbeddingModel();
             const contents = Array.isArray(content) ? content : [content];
@@ -584,24 +670,35 @@ RULES:
             let streamError: Error | undefined;
 
             // Build codebase tools when toolsEnabled is requested
-            const workspaceRoot = options?.workspaceRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+            const workspaceRoot =
+                options?.workspaceRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
             const onActivity = options?.onActivity;
             const onRequestPermission = options?.onRequestPermission;
             const toolsEnabled = options?.toolsEnabled ?? false;
 
             const registry = new ToolRegistry(workspaceRoot, onRequestPermission);
             const codebookTools: any = toolsEnabled ? registry.getTools() : undefined;
-            
+
             // AI SDK v3 handles system prompts reliably when passed via the `system` parameter.
             // Some providers like Google Gemini throw errors or hallucinate if `role: system` is in the `messages` array.
-            const systemMsg = messages.find(m => m.role === 'system');
-            const chatMessages = messages.filter(m => m.role !== 'system');
+            const systemMsg = messages.find((m) => m.role === 'system');
+            const chatMessages = messages.filter((m) => m.role !== 'system');
+
+            // Enable reasoning output for thinking models (Anthropic, Google, OpenAI)
+            const reasoningOptions = this.getReasoningProviderOptions();
+            if (reasoningOptions) {
+                console.log(
+                    '[LLMService] Provider reasoning options:',
+                    JSON.stringify(reasoningOptions),
+                );
+            }
 
             const result = streamText({
                 model,
                 system: systemMsg?.content,
                 messages: chatMessages,
                 abortSignal,
+                ...(reasoningOptions ? { providerOptions: reasoningOptions } : {}),
                 ...(codebookTools ? { tools: codebookTools, stopWhen: stepCountIs(6) } : {}),
                 onError({ error }) {
                     console.error('[LLMService] Stream error:', error);
@@ -650,6 +747,7 @@ RULES:
                     fullText += chunkInfo;
                 } else if (part.type === 'reasoning-delta' || part.type === 'reasoning-start') {
                     if (!reasoningStarted) {
+                        console.log(`[LLMService] Reasoning stream detected (type: ${part.type})`);
                         onChunk('<think>\n');
                         fullText += '<think>\n';
                         reasoningStarted = true;
@@ -660,13 +758,34 @@ RULES:
                     }
                     if (part.type === 'reasoning-delta') {
                         chunkCount++;
-                        const chunkInfo = partAny.textDelta || partAny.reasoning || partAny.delta || '';
+                        const chunkInfo =
+                            partAny.textDelta ||
+                            partAny.reasoning ||
+                            partAny.delta ||
+                            partAny.text ||
+                            '';
                         onChunk(chunkInfo);
                         fullText += chunkInfo;
                     }
+                } else if (part.type === 'reasoning-end') {
+                    // Provider signalled end of reasoning — close the block
+                    if (reasoningStarted) {
+                        onChunk('</think>\n\n');
+                        fullText += '</think>\n\n';
+                        reasoningStarted = false;
+                    }
                 } else if (part.type === 'tool-call') {
+                    // Close any open reasoning block before tool HTML
+                    if (reasoningStarted) {
+                        onChunk('</think>\n\n');
+                        fullText += '</think>\n\n';
+                        reasoningStarted = false;
+                    }
                     const toolLabel = this.formatToolCallLabel(partAny.toolName, partAny.args);
-                    const chunkInfo = `\n<div class="tool-step"><span class="tool-step-indicator">▸</span> ${toolLabel}</div>\n`;
+                    const argsJson = JSON.stringify(partAny.args, null, 2)
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                    const chunkInfo = `\n<details class="tool-step"><summary class="tool-step-summary"><span class="tool-step-indicator">▸</span> ${toolLabel}</summary><div class="tool-step-details"><pre><code>${argsJson}</code></pre></div></details>\n`;
                     onChunk(chunkInfo);
                     fullText += chunkInfo;
                     // Update indicator with tool-specific activity
@@ -676,8 +795,19 @@ RULES:
                         lastEmittedState = 'tool';
                     }
                 } else if (part.type === 'tool-result') {
+                    // Close any open reasoning block before tool result HTML
+                    if (reasoningStarted) {
+                        onChunk('</think>\n\n');
+                        fullText += '</think>\n\n';
+                        reasoningStarted = false;
+                    }
                     const summary = this.formatToolResultSummary(partAny.toolName, partAny.result);
-                    const chunkInfo = `\n<div class="tool-step tool-step-done"><span class="tool-step-indicator">✓</span> ${summary}</div>\n`;
+                    let resultStr =
+                        typeof partAny.result === 'string'
+                            ? partAny.result
+                            : JSON.stringify(partAny.result, null, 2);
+                    resultStr = (resultStr || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const chunkInfo = `\n<details class="tool-step tool-step-done"><summary class="tool-step-summary"><span class="tool-step-indicator">✓</span> ${summary}</summary><div class="tool-step-details"><pre><code>${resultStr}</code></pre></div></details>\n`;
                     onChunk(chunkInfo);
                     fullText += chunkInfo;
                     // Show processing state while model processes tool results
@@ -763,7 +893,11 @@ RULES:
         }
 
         // Error results — show them
-        if (text.startsWith('Error:') || text.startsWith('Error creating') || text.startsWith('Error editing')) {
+        if (
+            text.startsWith('Error:') ||
+            text.startsWith('Error creating') ||
+            text.startsWith('Error editing')
+        ) {
             return text.length > 120 ? text.slice(0, 120) + '…' : text;
         }
 
@@ -776,13 +910,13 @@ RULES:
         // Search tools — show match count
         if (toolName === 'search_codebase' || toolName === 'grep_search') {
             if (text.startsWith('No matches')) return 'No matches';
-            const matchCount = text.split('\n').filter(l => l.trim()).length;
+            const matchCount = text.split('\n').filter((l) => l.trim()).length;
             return `${matchCount} match${matchCount !== 1 ? 'es' : ''} found`;
         }
 
         // List tools — show file count
         if (toolName === 'list_workspace_files') {
-            const fileCount = text.split('\n').filter(l => l.trim()).length;
+            const fileCount = text.split('\n').filter((l) => l.trim()).length;
             return `${fileCount} file${fileCount !== 1 ? 's' : ''} listed`;
         }
 

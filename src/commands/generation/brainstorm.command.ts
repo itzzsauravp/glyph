@@ -78,7 +78,9 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                 enableScripts: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [
-                    vscode.Uri.file(path.join(this.context.extensionPath, 'dist', 'webview', 'brainstorm')),
+                    vscode.Uri.file(
+                        path.join(this.context.extensionPath, 'dist', 'webview', 'brainstorm'),
+                    ),
                 ],
             },
         );
@@ -100,7 +102,9 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
         this.currentPanel = panel;
 
         // Set icon
-        panel.iconPath = vscode.Uri.file(path.join(this.context.extensionPath, 'images', 'brain.svg'));
+        panel.iconPath = vscode.Uri.file(
+            path.join(this.context.extensionPath, 'images', 'brain.svg'),
+        );
 
         // Handle focus/visibility
         this.updatePresence(true);
@@ -116,7 +120,11 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
             this.disposables,
         );
 
-        panel.webview.onDidReceiveMessage((m) => this.handleWebviewMessage(m), null, this.disposables);
+        panel.webview.onDidReceiveMessage(
+            (m) => this.handleWebviewMessage(m),
+            null,
+            this.disposables,
+        );
 
         // Sync initial model state
         this.sendModelsListToPanel();
@@ -183,7 +191,7 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                     this.activeAbortController.abort();
                     this.activeAbortController = null;
                 }
-                
+
                 // Reject all pending tool permission requests
                 for (const resolve of this.permissionPromises.values()) {
                     resolve(false);
@@ -431,8 +439,10 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                 constraintPrompt = `\nCRITICAL INSTRUCTION: The user has enabled "Codebase" and/or "Structure" awareness. You MUST answer their questions strictly based on the provided project context or directory tree. If their question is completely unrelated to the provided codebase context, you MUST politely decline to answer and remind them that you are currently constrained to codebase-specific questions.`;
             }
 
-            const requirePermission = vscode.workspace.getConfiguration('glyph').get<boolean>('agent.requireToolPermission', true);
-            const permissionGatingText = requirePermission 
+            const requirePermission = vscode.workspace
+                .getConfiguration('glyph')
+                .get<boolean>('agent.requireToolPermission', true);
+            const permissionGatingText = requirePermission
                 ? 'are gated by the system. The user will be automatically prompted for approval when you invoke them.'
                 : 'are fully unrestricted and will execute immediately.';
 
@@ -455,16 +465,28 @@ CRITICAL TOOL INSTRUCTION: You MUST invoke tools using the native tool calling A
                 messages,
                 (chunk: string) => {
                     assistantResponse += chunk;
-                    
+
                     let processedOutput = assistantResponse;
-                    
+
                     // Replace <think> and </think> with an open HTML block for styling
-                    processedOutput = processedOutput.replace(/<think>/g, '<div class="think-block"><strong>Thinking Process</strong>\n\n');
-                    processedOutput = processedOutput.replace(/<\/think>/g, '\n\n</div>');
+                    // The `open` attribute ensures thinking content is visible during streaming.
+                    // Leading \n ensures MarkdownIt treats this as an HTML block (block-level elements
+                    // must start at the beginning of a line for proper rendering).
+                    processedOutput = processedOutput.replace(
+                        /<think>/g,
+                        '\n<details class="think-block" open><summary><strong>Thinking Process</strong></summary>\n<div class="think-content">\n\n',
+                    );
+                    processedOutput = processedOutput.replace(
+                        /<\/think>/g,
+                        '\n\n</div>\n</details>\n',
+                    );
 
                     // Prevent broken rendering if <think> hasn't been closed yet during streaming
-                    if (assistantResponse.includes('<think>') && !assistantResponse.includes('</think>')) {
-                        processedOutput += '\n\n</div>';
+                    if (
+                        assistantResponse.includes('<think>') &&
+                        !assistantResponse.includes('</think>')
+                    ) {
+                        processedOutput += '\n\n</div>\n</details>\n';
                     }
 
                     const renderedHtml = this.md.render(processedOutput);
@@ -483,7 +505,9 @@ CRITICAL TOOL INSTRUCTION: You MUST invoke tools using the native tool calling A
                         });
                     },
                     onRequestPermission: (toolName: string, details: string) => {
-                        const requirePermission = vscode.workspace.getConfiguration('glyph').get<boolean>('agent.requireToolPermission', true);
+                        const requirePermission = vscode.workspace
+                            .getConfiguration('glyph')
+                            .get<boolean>('agent.requireToolPermission', true);
                         if (!requirePermission) {
                             return Promise.resolve(true);
                         }
@@ -505,7 +529,7 @@ CRITICAL TOOL INSTRUCTION: You MUST invoke tools using the native tool calling A
             this.chatHistory.push({ role: 'assistant', content: assistantResponse });
         } catch (error) {
             this.activeAbortController = null;
-            
+
             // Do not show an error notification if it was intentionally aborted
             if (error instanceof Error && error.name === 'AbortError') {
                 console.log('[Brainstorm] Generation was cancelled by the user.');
