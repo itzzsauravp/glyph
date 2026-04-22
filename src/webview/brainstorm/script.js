@@ -19,6 +19,7 @@ const optionsList = document.getElementById('dropdown-options-list');
 const selectedModelEl = document.getElementById('selected-model-name');
 const codebaseToggle = document.getElementById('codebase-toggle');
 const structureToggle = document.getElementById('structure-toggle');
+const toolsToggle = document.getElementById('tools-toggle');
 const searchInput = document.getElementById('dropdown-search');
 const settingsTrigger = document.getElementById('settings-trigger');
 const settingsPanel = document.getElementById('settings-panel');
@@ -34,6 +35,8 @@ let currentModelName = '';
 let modelsData = {};
 let shouldAutoScroll = true;
 let isGenerating = false;
+let isToolsEnabled = false;
+let userDisabledTools = false;
 
 // ── SVG Icons ───────────────────────────────────────
 const COPY_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
@@ -71,6 +74,28 @@ codebaseToggle.addEventListener('click', () => {
 structureToggle.addEventListener('click', () => {
     const isActive = structureToggle.classList.toggle('active');
     vscode.postMessage({ type: 'toggle-structure', value: isActive });
+});
+
+// ── Tools Toggle ──────────────────────────────────
+toolsToggle.addEventListener('click', () => {
+    if (toolsToggle.classList.contains('tools-checking')) return;
+
+    if (isToolsEnabled) {
+        // Turn off — restore codebase toggle availability
+        isToolsEnabled = false;
+        userDisabledTools = true;
+        toolsToggle.classList.remove('tools-active', 'tools-error');
+        toolsToggle.setAttribute('data-tooltip', 'Enable agentic tool calls (reads files, searches code)');
+        codebaseToggle.setAttribute('data-tooltip', 'Enable codebase-aware context (Vector RAG)');
+        vscode.postMessage({ type: 'toggle-tools', value: false });
+        return;
+    }
+
+    // Run capability test first
+    userDisabledTools = false;
+    toolsToggle.classList.add('tools-checking');
+    toolsToggle.setAttribute('data-tooltip', 'Testing tool call support…');
+    vscode.postMessage({ type: 'test-tool-calls' });
 });
 
 // ── Settings Panel & Slider ────────────────────────
@@ -189,6 +214,13 @@ function handleModelSelect(modelInfo) {
     });
 
     closeDropdown();
+
+    // Auto-run tool capability check on model change
+    if (!userDisabledTools && toolsToggle && !toolsToggle.classList.contains('tools-checking')) {
+        toolsToggle.classList.add('tools-checking');
+        toolsToggle.setAttribute('data-tooltip', 'Testing tool call support…');
+        vscode.postMessage({ type: 'test-tool-calls' });
+    }
 }
 
 // ── Chat Functions ─────────────────────────────────
@@ -268,32 +300,60 @@ promptInput.addEventListener('keydown', (e) => {
     }
 });
 
-// ── Copy Button (event delegation) ──────────────────
+// ── Copy Button & Permissions (event delegation) ──────────────────
 chatContainer.addEventListener('click', (e) => {
-    const btn = e.target.closest('.copy-btn');
-    if (!btn) {
-        return;
-    }
-
-    const rawText = btn.getAttribute('data-clipboard');
-    if (!rawText) {
-        return;
-    }
-
-    navigator.clipboard.writeText(rawText).then(() => {
-        btn.classList.add('copied');
-        const copyIcon = btn.querySelector('.copy-icon-wrapper');
-        const checkIcon = btn.querySelector('.check-icon');
-        if (copyIcon && checkIcon) {
-            copyIcon.style.display = 'none';
-            checkIcon.style.display = 'inline-block';
-            setTimeout(() => {
-                copyIcon.style.display = 'inline-block';
-                checkIcon.style.display = 'none';
-                btn.classList.remove('copied');
-            }, 2000);
+    // Handle Copy Button
+    const copyBtn = e.target.closest('.copy-btn');
+    if (copyBtn) {
+        const rawText = copyBtn.getAttribute('data-clipboard');
+        if (rawText) {
+            navigator.clipboard.writeText(rawText).then(() => {
+                copyBtn.classList.add('copied');
+                const copyIcon = copyBtn.querySelector('.copy-icon-wrapper');
+                const checkIcon = copyBtn.querySelector('.check-icon');
+                if (copyIcon && checkIcon) {
+                    copyIcon.style.display = 'none';
+                    checkIcon.style.display = 'inline-block';
+                    setTimeout(() => {
+                        copyIcon.style.display = 'inline-block';
+                        checkIcon.style.display = 'none';
+                        copyBtn.classList.remove('copied');
+                    }, 2000);
+                }
+            });
         }
-    });
+        return;
+    }
+
+    // Handle Permission Buttons
+    const permBtn = e.target.closest('.perm-btn');
+    if (permBtn) {
+        const isApprove = permBtn.classList.contains('perm-approve');
+        const id = permBtn.getAttribute('data-id');
+        const block = permBtn.closest('.permission-block');
+        
+        if (id && block && !permBtn.disabled) {
+            // Disable buttons to prevent double-click
+            block.querySelectorAll('.perm-btn').forEach(b => {
+                b.disabled = true;
+            });
+            
+            // Send resolution back to Extension
+            vscode.postMessage({
+                type: 'tool-permission-response',
+                value: { id, approved: isApprove }
+            });
+            
+            // Update UI state
+            if (isApprove) {
+                block.classList.add('resolved-approved');
+                permBtn.innerHTML = `<span>✓ Approved</span>`;
+            } else {
+                block.classList.add('resolved-denied');
+                permBtn.innerHTML = `<span>✗ Denied</span>`;
+            }
+        }
+    }
 });
 
 // ── Smart Auto-Scroll ──────────────────────────────
@@ -394,6 +454,14 @@ window.addEventListener('message', (event) => {
                 structureToggle.classList.toggle('active', !!s.isStructureAware);
                 memorySlider.value = s.memoryLimit || 15;
                 memoryValue.textContent = `${memorySlider.value} msgs`;
+                if (s.isToolsEnabled) {
+                    isToolsEnabled = true;
+                    userDisabledTools = false;
+                    toolsToggle.classList.add('tools-active');
+                    toolsToggle.setAttribute('data-tooltip', 'Tool calls active — click to disable');
+                } else {
+                    userDisabledTools = true;
+                }
             }
             break;
 
@@ -428,13 +496,120 @@ window.addEventListener('message', (event) => {
 
         case 'set-thinking':
             thinkingName.textContent = msg.value || currentModelName || 'Glyph';
+            // Remove any stale tool activity
+            const existingActivity = thinkingIndicator.querySelector('.tool-activity-text');
+            if (existingActivity) existingActivity.remove();
+            // Update label to generic working state
+            const statusSpan = thinkingIndicator.querySelector('.thinking-status');
+            if (statusSpan) statusSpan.textContent = 'is working…';
             thinkingIndicator.classList.add('active');
             shouldAutoScroll = true;
             scrollToBottom();
             break;
 
+        case 'tool-activity': {
+            // Update the status label based on the activity type
+            const statusEl = thinkingIndicator.querySelector('.thinking-status');
+            const activityText = msg.value || '';
+            if (statusEl) {
+                if (activityText === 'Thinking…') {
+                    statusEl.textContent = 'is thinking…';
+                } else if (activityText === 'Generating…') {
+                    statusEl.textContent = 'is generating…';
+                } else if (activityText === 'Processing…') {
+                    statusEl.textContent = 'is processing…';
+                } else {
+                    statusEl.textContent = 'is working…';
+                }
+            }
+            // Show tool-specific activity text for tool operations
+            let activityEl = thinkingIndicator.querySelector('.tool-activity-text');
+            if (activityText.startsWith('▸') || activityText.startsWith('Processing')) {
+                if (!activityEl) {
+                    activityEl = document.createElement('span');
+                    activityEl.className = 'tool-activity-text';
+                    thinkingIndicator.appendChild(activityEl);
+                }
+                activityEl.textContent = activityText;
+            } else if (activityEl) {
+                activityEl.remove();
+            }
+            // Make sure indicator stays visible
+            thinkingIndicator.classList.add('active');
+            break;
+        }
+
+        case 'tool-call-test-result': {
+            toolsToggle.classList.remove('tools-checking');
+            if (msg.supported) {
+                isToolsEnabled = true;
+                toolsToggle.classList.add('tools-active');
+                toolsToggle.classList.remove('tools-error');
+                toolsToggle.setAttribute('data-tooltip', 'Tool calls active — click to disable');
+                vscode.postMessage({ type: 'toggle-tools', value: true });
+
+                // Auto-disable codebase RAG — tools replace vector search
+                codebaseToggle.classList.remove('active');
+                codebaseToggle.setAttribute('data-tooltip', 'Vector RAG disabled — using tool-based code reading');
+                vscode.postMessage({ type: 'toggle-codebase', value: false });
+            } else {
+                isToolsEnabled = false;
+                toolsToggle.classList.add('tools-error');
+                toolsToggle.classList.remove('tools-active');
+                toolsToggle.setAttribute('data-tooltip', 'This model does not support tool calls');
+                vscode.postMessage({ type: 'toggle-tools', value: false });
+            }
+            break;
+        }
+
+        case 'tool-permission-request': {
+            const { id, toolName, details } = msg.value;
+            
+            if (currentAiMessageElement) {
+                const tools = currentAiMessageElement.querySelectorAll('.tool-step');
+                const lastTool = tools[tools.length - 1];
+                if (lastTool) {
+                    lastTool.classList.add('dropdown-tool-step');
+                    lastTool.style.display = 'block'; // Override flex
+                    
+                    const originalText = lastTool.innerHTML.replace(/<span class="tool-step-indicator">▸<\/span>/g, '').trim();
+                    
+                    lastTool.innerHTML = `
+                        <details class="permission-dropdown" open>
+                            <summary class="permission-summary" style="cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600; color: #facc15;">
+                                <span class="tool-step-indicator" style="color: #facc15;">⚠️</span> 
+                                <span>${originalText} (Action Required - Click to collapse)</span>
+                            </summary>
+                            <div class="permission-block" style="margin-top: 8px; border: 1px solid rgba(250, 204, 21, 0.3); border-radius: 6px; padding: 10px; background: rgba(250, 204, 21, 0.05);">
+                                <div class="permission-header" style="display: flex; gap: 6px; align-items: center; margin-bottom: 8px; color: #facc15;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                    </svg>
+                                    <span>Permission Required</span>
+                                </div>
+                                <div class="permission-body" style="margin-bottom: 12px; font-size: 11.5px;">
+                                    <p class="permission-desc" style="margin: 0 0 4px 0; color: var(--text-main);"><strong>${toolName}</strong> is requesting permission from your host:</p>
+                                    <div class="permission-details" style="font-family: var(--vscode-editor-font-family); background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; color: var(--text-muted);">${details}</div>
+                                </div>
+                                <div class="permission-actions" style="display: flex; gap: 8px;">
+                                    <button class="perm-btn perm-approve" data-id="${id}" style="background: #22c55e; color: #fff; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer;">Allow</button>
+                                    <button class="perm-btn perm-deny" data-id="${id}" style="background: #ef4444; color: #fff; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer;">Deny</button>
+                                </div>
+                            </div>
+                        </details>
+                    `;
+                }
+            }
+            
+            shouldAutoScroll = true;
+            scrollToBottom();
+            break;
+        }
+
         case 'stream-update':
-            thinkingIndicator.classList.remove('active');
+            // Keep thinking indicator active during generation — don't hide it here
             if (!currentAiMessageElement) {
                 currentAiMessageElement = appendMessage('ai');
             }
@@ -444,6 +619,9 @@ window.addEventListener('message', (event) => {
 
         case 'generation-complete':
             thinkingIndicator.classList.remove('active');
+            // Clean up tool activity text
+            const remainingActivity = thinkingIndicator.querySelector('.tool-activity-text');
+            if (remainingActivity) remainingActivity.remove();
             currentAiMessageElement = null;
             isGenerating = false;
             sendBtn.classList.remove('cancel-mode');

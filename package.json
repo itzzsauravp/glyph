@@ -4,7 +4,7 @@
     "displayName": "Glyph: Micro AI Helper",
     "publisher": "sauravparajulee",
     "description": "A privacy-first, backend-agnostic AI assistant for code generation, documentation, and brainstorming.",
-    "version": "0.3.1",
+    "version": "0.4.0",
     "icon": "images/icon.png",
     "repository": {
         "type": "git",
@@ -63,6 +63,10 @@
                 "title": "Glyph: Setup Custom Model & API Key"
             },
             {
+                "command": "glyph.brainstorm",
+                "title": "Glyph: Brainstorm (Chat)"
+            },
+            {
                 "command": "glyph.manage_api_keys",
                 "title": "Glyph: Manage / Delete API Keys"
             },
@@ -111,6 +115,11 @@
                     ],
                     "default": "Ollama",
                     "description": "Choose the LLM provider to use."
+                },
+                "glyph.agent.requireToolPermission": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Require explicit confirmation before executing agentic tool actions (like creating/editing files). Disable to auto-grant all tool permissions."
                 }
             }
         },
@@ -204,6 +213,7 @@
         "ai": "^6.0.146",
         "highlight.js": "^11.11.1",
         "markdown-it": "^14.1.1",
-        "tree-node-cli": "^3.0.0"
+        "tree-node-cli": "^3.0.0",
+        "zod": "^4.3.6"
     }
 }

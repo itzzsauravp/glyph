@@ -8,25 +8,20 @@ import type { LLMService, ModelRegistryService } from '../../services';
 import BaseCommand from '../core/base.command';
 
 /**
- * Brainstorm — interactive AI chat panel.
- *
- * Lifecycle:
- *  - Implements `WebviewPanelSerializer` so that VS Code can restore
- *    the panel on restart if it was left open.
- *  - Tracks explicit close via `onDidDispose` to prevent orphaned restore.
- *  - Subscribes to `GlyphConfig.onDidChange` to sync model state in real time.
+ * Brainstorm — interactive AI chat panel in a Webview Tab.
  */
 export default class Brainstorm extends BaseCommand implements vscode.WebviewPanelSerializer {
-    public id: string = 'glyph.brainstorm';
+    public readonly id = 'glyph.brainstorm';
+    public static readonly viewType = 'glyphBrainstorm';
 
     private currentPanel: vscode.WebviewPanel | undefined;
     private disposables: vscode.Disposable[] = [];
     private chatHistory: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [];
     private md: MarkdownIt;
-    private refreshTimer: ReturnType<typeof setTimeout> | undefined;
     private activeAbortController: AbortController | null = null;
+    private permissionPromises = new Map<string, (approved: boolean) => void>();
+    private refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
-    /** Track whether the user explicitly closed the panel. */
     private static readonly SESSION_STATE_KEY = 'glyph.brainstorm.sessionOpen';
 
     constructor(
@@ -40,10 +35,6 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
         },
     ) {
         super();
-
-        // Register the serializer so VS Code can restore the panel on reload.
-        vscode.window.registerWebviewPanelSerializer('glyph.brainstormPanel', this);
-
         this.md = this.initializeMarkdown();
 
         // Subscribe to config changes — push model updates to open panels.
@@ -69,79 +60,78 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
         });
     }
 
-    // ── WebviewPanelSerializer ───────────────────────────────────────
-
     /**
-     * Called by VS Code when restoring a previously open Brainstorm panel.
-     * Only restores if the session was NOT explicitly closed by the user.
+     * Launch/Focus the Brainstorm chat panel.
      */
-    public async deserializeWebviewPanel(
-        panel: vscode.WebviewPanel,
-        _state: unknown,
-    ): Promise<void> {
-        const wasOpen = this.context.globalState.get<boolean>(Brainstorm.SESSION_STATE_KEY, false);
-
-        if (!wasOpen) {
-            // User explicitly closed — do not restore.
-            panel.dispose();
-            return;
-        }
-
-        this.currentPanel = panel;
-        this.attachPanel(panel);
-    }
-
-    // ── Command Action ──────────────────────────────────────────────
-
-    public action = () => {
+    public action = (): void => {
+        // If panel exists, focus it
         if (this.currentPanel) {
             this.currentPanel.reveal(vscode.ViewColumn.Beside);
             return;
         }
 
-        const extensionUri = this.context.extensionUri;
-
         const panel = vscode.window.createWebviewPanel(
-            'glyph.brainstormPanel',
-            'Glyph Brainstorm',
+            Brainstorm.viewType,
+            'Brainstorm',
             vscode.ViewColumn.Beside,
             {
                 enableScripts: true,
-                localResourceRoots: [extensionUri],
                 retainContextWhenHidden: true,
+                localResourceRoots: [
+                    vscode.Uri.file(
+                        path.join(this.context.extensionPath, 'dist', 'webview', 'brainstorm'),
+                    ),
+                ],
             },
         );
 
-        this.currentPanel = panel;
         this.attachPanel(panel);
-
-        // Mark session as open.
-        this.context.globalState.update(Brainstorm.SESSION_STATE_KEY, true);
     };
 
-    // ── Panel Setup ─────────────────────────────────────────────────
+    /**
+     * Restore session from VS Code state (serialization context).
+     */
+    public async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, _state: any) {
+        this.attachPanel(webviewPanel);
+    }
 
     /**
-     * Wires up message handlers, disposal, and initial state for a webview panel.
+     * Internal setup for a revealed or restored panel.
      */
-    private attachPanel(panel: vscode.WebviewPanel): void {
+    private attachPanel(panel: vscode.WebviewPanel) {
+        this.currentPanel = panel;
+
+        // Set icon
+        panel.iconPath = vscode.Uri.file(
+            path.join(this.context.extensionPath, 'images', 'brain.svg'),
+        );
+
+        // Handle focus/visibility
+        this.updatePresence(true);
+
         panel.webview.html = this._getHtmlForWebview();
 
         panel.onDidDispose(
             () => {
-                // Mark session as explicitly closed.
-                this.context.globalState.update(Brainstorm.SESSION_STATE_KEY, false);
-                this.dispose();
+                this.currentPanel = undefined;
+                this.updatePresence(false);
             },
             null,
             this.disposables,
         );
 
         panel.webview.onDidReceiveMessage(
-            (data) => this.handleWebviewMessage(data),
+            (m) => this.handleWebviewMessage(m),
             null,
             this.disposables,
         );
+
+        // Sync initial model state
+        this.sendModelsListToPanel();
+    }
+
+    private updatePresence(isOpen: boolean) {
+        this.context.globalState.update(Brainstorm.SESSION_STATE_KEY, isOpen);
     }
 
     // ── Message Handler ─────────────────────────────────────────────
@@ -150,6 +140,10 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
      * Routes incoming webview messages to the appropriate handler.
      */
     private async handleWebviewMessage(data: any): Promise<void> {
+        if (!this.currentPanel) {
+            return;
+        }
+
         switch (data.type) {
             case 'webview-ready':
                 await this.sendModelsListToPanel();
@@ -197,6 +191,46 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                     this.activeAbortController.abort();
                     this.activeAbortController = null;
                 }
+
+                // Reject all pending tool permission requests
+                for (const resolve of this.permissionPromises.values()) {
+                    resolve(false);
+                }
+                this.permissionPromises.clear();
+                break;
+            }
+
+            case 'toggle-tools': {
+                await this.context.workspaceState.update(
+                    'glyph.brainstorm.toolsEnabled',
+                    !!data.value,
+                );
+                break;
+            }
+
+            case 'test-tool-calls': {
+                try {
+                    const supported = await this.llmService.testToolCallSupport();
+                    this.currentPanel?.webview.postMessage({
+                        type: 'tool-call-test-result',
+                        supported,
+                    });
+                } catch {
+                    this.currentPanel?.webview.postMessage({
+                        type: 'tool-call-test-result',
+                        supported: false,
+                    });
+                }
+                break;
+            }
+
+            case 'tool-permission-response': {
+                const { id, approved } = data.value;
+                const resolver = this.permissionPromises.get(id);
+                if (resolver) {
+                    resolver(!!approved);
+                    this.permissionPromises.delete(id);
+                }
                 break;
             }
 
@@ -215,12 +249,17 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                     'glyph.brainstorm.memoryLimit',
                     15,
                 );
+                const isToolsEnabled = this.context.workspaceState.get<boolean>(
+                    'glyph.brainstorm.toolsEnabled',
+                    false,
+                );
                 await this.handleChatMessage(
                     data.value,
                     modelName,
                     isCodebaseAware,
                     isStructureAware,
                     memoryLimit,
+                    isToolsEnabled,
                 );
                 break;
             }
@@ -308,8 +347,13 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
             15,
         );
 
+        const isToolsEnabledSaved = this.context.workspaceState.get<boolean>(
+            'glyph.brainstorm.toolsEnabled',
+            false,
+        );
+
         // 5. Send the clean, separated data to the UI
-        this.currentPanel.webview.postMessage({
+        this.currentPanel?.webview.postMessage({
             type: 'set-models-list',
             groupedModels,
             currentModel: config.model,
@@ -317,15 +361,16 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                 isCodebaseAware,
                 isStructureAware,
                 memoryLimit,
+                isToolsEnabled: isToolsEnabledSaved,
             },
         });
 
-        this.currentPanel.webview.postMessage({
+        this.currentPanel?.webview.postMessage({
             type: 'set-model-name',
             value: config.model || 'AI',
         });
 
-        this.currentPanel.webview.postMessage({
+        this.currentPanel?.webview.postMessage({
             type: 'set-codebase-state',
             value: isCodebaseAware,
         });
@@ -339,6 +384,7 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
         isCodebaseAware: boolean,
         isStructureAware: boolean,
         memoryLimit: number,
+        isToolsEnabled: boolean = false,
     ): Promise<void> {
         this.chatHistory.push({ role: 'user', content: payload.text });
 
@@ -365,7 +411,8 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
             }
 
             // Handle Codebase RAG (Specific Snippets)
-            if (isCodebaseAware) {
+            // When tools are active, the model reads files directly — skip RAG
+            if (isCodebaseAware && !isToolsEnabled) {
                 if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
                 augmentedContext += await this.buildCodebaseContext(payload.text, signal);
             }
@@ -386,13 +433,27 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
             });
 
             let constraintPrompt = '';
-            if (isCodebaseAware || isStructureAware) {
+            if (isToolsEnabled) {
+                constraintPrompt = `\nYou have codebase tools available. Use them proactively to read files and search code when needed to answer questions accurately. Do NOT guess file contents — always read them with tools first.`;
+            } else if (isCodebaseAware || isStructureAware) {
                 constraintPrompt = `\nCRITICAL INSTRUCTION: The user has enabled "Codebase" and/or "Structure" awareness. You MUST answer their questions strictly based on the provided project context or directory tree. If their question is completely unrelated to the provided codebase context, you MUST politely decline to answer and remind them that you are currently constrained to codebase-specific questions.`;
             }
 
+            const requirePermission = vscode.workspace
+                .getConfiguration('glyph')
+                .get<boolean>('agent.requireToolPermission', true);
+            const permissionGatingText = requirePermission
+                ? 'are gated by the system. The user will be automatically prompted for approval when you invoke them.'
+                : 'are fully unrestricted and will execute immediately.';
+
+            const toolsPrompt = isToolsEnabled
+                ? `\nTOOL CALLING: ACTIVE — You have access to codebase tools. Read tools (list_project_structure, read_file_content, read_lines, search_codebase, grep_search, list_workspace_files) execute freely. Write tools (create_file, edit_file, run_command) ${permissionGatingText}
+CRITICAL TOOL INSTRUCTION: You MUST invoke tools using the native tool calling API. DO NOT ask the user for permission verbally before using a tool. JUST INVOKE THE TOOL directly. The system handles all permission dialogues.`
+                : '';
+
             const systemPrompt = {
                 role: 'system' as const,
-                content: `You are Glyph, a coding assistant and model integrator created by Saurav Parajulee. Answer questions concisely and provide code block snippets when helpful. You are a versatile tool designed to bridge the gap between different AI providers and the developer's needs.\n\nCODEBASE CONTEXT AWARENESS: ${isCodebaseAware ? 'ACTIVE' : 'INACTIVE'}\nPROJECT STRUCTURE AWARENESS: ${isStructureAware ? 'ACTIVE' : 'INACTIVE'}${constraintPrompt}\n${augmentedContext}`,
+                content: `You are Glyph, a coding assistant and model integrator created by Saurav Parajulee. Answer questions concisely and provide code block snippets when helpful. You are a versatile tool designed to bridge the gap between different AI providers and the developer's needs.\n\nCODEBASE CONTEXT AWARENESS: ${isCodebaseAware && !isToolsEnabled ? 'ACTIVE (RAG)' : isToolsEnabled ? 'ACTIVE (TOOLS)' : 'INACTIVE'}\nPROJECT STRUCTURE AWARENESS: ${isStructureAware ? 'ACTIVE' : 'INACTIVE'}${constraintPrompt}${toolsPrompt}\n${augmentedContext}`,
             };
 
             const messages = [systemPrompt, ...this.chatHistory];
@@ -404,16 +465,28 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                 messages,
                 (chunk: string) => {
                     assistantResponse += chunk;
-                    
+
                     let processedOutput = assistantResponse;
-                    
-                    // Replace <think> and </think> with HTML details block
-                    processedOutput = processedOutput.replace(/<think>/g, '<details class="think-block" open><summary>Reasoning Process</summary><div class="think-content">');
-                    processedOutput = processedOutput.replace(/<\/think>/g, '</div></details>');
+
+                    // Replace <think> and </think> with an open HTML block for styling
+                    // The `open` attribute ensures thinking content is visible during streaming.
+                    // Leading \n ensures MarkdownIt treats this as an HTML block (block-level elements
+                    // must start at the beginning of a line for proper rendering).
+                    processedOutput = processedOutput.replace(
+                        /<think>/g,
+                        '\n<details class="think-block" open><summary><strong>Thinking Process</strong></summary>\n<div class="think-content">\n\n',
+                    );
+                    processedOutput = processedOutput.replace(
+                        /<\/think>/g,
+                        '\n\n</div>\n</details>\n',
+                    );
 
                     // Prevent broken rendering if <think> hasn't been closed yet during streaming
-                    if (assistantResponse.includes('<think>') && !assistantResponse.includes('</think>')) {
-                        processedOutput += '</div></details>';
+                    if (
+                        assistantResponse.includes('<think>') &&
+                        !assistantResponse.includes('</think>')
+                    ) {
+                        processedOutput += '\n\n</div>\n</details>\n';
                     }
 
                     const renderedHtml = this.md.render(processedOutput);
@@ -423,6 +496,32 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
                     });
                 },
                 this.activeAbortController.signal,
+                {
+                    toolsEnabled: isToolsEnabled,
+                    onActivity: (activity: string) => {
+                        this.currentPanel?.webview.postMessage({
+                            type: 'tool-activity',
+                            value: activity,
+                        });
+                    },
+                    onRequestPermission: (toolName: string, details: string) => {
+                        const requirePermission = vscode.workspace
+                            .getConfiguration('glyph')
+                            .get<boolean>('agent.requireToolPermission', true);
+                        if (!requirePermission) {
+                            return Promise.resolve(true);
+                        }
+
+                        return new Promise<boolean>((resolve) => {
+                            const id = Math.random().toString(36).substr(2, 9);
+                            this.permissionPromises.set(id, resolve);
+                            this.currentPanel?.webview.postMessage({
+                                type: 'tool-permission-request',
+                                value: { id, toolName, details },
+                            });
+                        });
+                    },
+                },
             );
 
             this.activeAbortController = null;
@@ -430,7 +529,7 @@ export default class Brainstorm extends BaseCommand implements vscode.WebviewPan
             this.chatHistory.push({ role: 'assistant', content: assistantResponse });
         } catch (error) {
             this.activeAbortController = null;
-            
+
             // Do not show an error notification if it was intentionally aborted
             if (error instanceof Error && error.name === 'AbortError') {
                 console.log('[Brainstorm] Generation was cancelled by the user.');

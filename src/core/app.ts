@@ -137,14 +137,18 @@ export default class GlyphApp {
 
         this.commandManager.register(new ManageApiKeys(this.context));
 
-        this.commandManager.register(
-            new Brainstorm(
-                this.context,
-                this.glyphConfig,
-                this.llmService,
-                this.modelRegistry,
-                this.repositoryIndexer,
-            ),
+        const brainstorm = new Brainstorm(
+            this.context,
+            this.glyphConfig,
+            this.llmService,
+            this.modelRegistry,
+            this.repositoryIndexer,
+        );
+
+        this.commandManager.register(brainstorm);
+
+        this.context.subscriptions.push(
+            vscode.window.registerWebviewPanelSerializer(Brainstorm.viewType, brainstorm),
         );
 
         this.commandManager.register(new ReloadConfig(this.glyphConfig));
