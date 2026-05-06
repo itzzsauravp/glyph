@@ -2,9 +2,8 @@ import * as vscode from 'vscode';
 import {
     type EditorService,
     type EditorUIService,
-    type LLMService,
     type RangeTrackerService,
-    type RepositoryIndexerService,
+    type ServerClient,
     type StatusBarService,
     StatusState,
 } from '../../services';
@@ -13,11 +12,10 @@ import BaseCommand from '../core/base.command';
 export default class GenerateDocs extends BaseCommand {
     constructor(
         private readonly editorService: EditorService,
-        private readonly llmService: LLMService,
+        private readonly serverClient: ServerClient,
         private readonly editorUI: EditorUIService,
         private readonly statusBar: StatusBarService,
         private readonly rangeTracker: RangeTrackerService,
-        private readonly repositoryIndexer: RepositoryIndexerService,
     ) {
         super();
     }
@@ -53,9 +51,6 @@ export default class GenerateDocs extends BaseCommand {
         try {
             this.statusBar.setState(StatusState.GeneratingDocs);
 
-            // Index the active file so that context vectors are up-to-date.
-            await this.repositoryIndexer.indexFile(savedUri);
-
             const startPos = (this.rangeTracker.getRange(trackerId) || savedRange).start;
 
             const tempEdit = new vscode.WorkspaceEdit();
@@ -69,11 +64,10 @@ export default class GenerateDocs extends BaseCommand {
 
             this.editorUI.showLoadingGhostText(editor, 'Generating', startPos);
 
-            // Use context-aware doc generation.
-            const resultFromLLM = await this.llmService.generateDocsWithContext(
+            // Delegate to the server
+            const resultFromLLM = await this.serverClient.generateDocs(
                 codeContext,
                 editor.document.languageId,
-                savedUri,
             );
 
             const tempRange = this.rangeTracker.getRange(tempTrackerId);

@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { resolveAdapter } from '../../adapters';
 import type GlyphConfig from '../../config/glyph.config';
 import { CLOUD_REGISTERY } from '../../constants';
 import type { StatusBarService } from '../../services';
+import type ServerClient from '../../services/server/server-client.service';
 import type { ICloudRegistery } from '../../types/llm.types';
 import BaseCommand from '../core/base.command';
 
@@ -11,6 +11,7 @@ export class CloudProviderOrchestrator extends BaseCommand {
         private readonly context: vscode.ExtensionContext,
         private readonly statusBar: StatusBarService,
         private readonly glyphConfig: GlyphConfig,
+        private readonly serverClient?: ServerClient,
     ) {
         super();
     }
@@ -66,7 +67,6 @@ export class CloudProviderOrchestrator extends BaseCommand {
                     vscode.window.showInformationMessage(result.message);
                 } else {
                     vscode.window.showErrorMessage(`Glyph: ${result.message}`);
-                    // Only delete the key on explicit auth failures
                     if (result.isAuthError) {
                         await this.context.secrets.delete(secretKey);
                     }
@@ -76,8 +76,7 @@ export class CloudProviderOrchestrator extends BaseCommand {
     };
 
     /**
-     * Verifies the connection by delegating to the provider's own `isReachable()`.
-     * Returns a structured result so the caller can show actionable messages.
+     * Verifies the connection via the glyph-server's /api/models/reachable endpoint.
      */
     private async verifyConnection(
         provider: string,
@@ -86,22 +85,35 @@ export class CloudProviderOrchestrator extends BaseCommand {
     ): Promise<{ success: boolean; message: string; isAuthError?: boolean }> {
         try {
             const config = CLOUD_REGISTERY[provider];
-            const adapterInstance = resolveAdapter(provider, config.baseUrl, key);
-            const reachable = await adapterInstance.isReachable(model);
 
-            if (reachable) {
-                await this.glyphConfig.updateModel(model);
-                await this.glyphConfig.updateEndpoint(config.baseUrl);
-                await this.glyphConfig.updateProviderType(provider);
-                await this.glyphConfig.addRegisteredModel(provider, model, config.baseUrl);
+            // Use the server to check reachability
+            if (this.serverClient) {
+                const reachable = await this.serverClient.isProviderReachable(
+                    provider,
+                    config.baseUrl,
+                    key,
+                    model,
+                );
 
-                this.statusBar.setModel(model);
-                return { success: true, message: `Successfully connected to ${model}` };
+                if (reachable) {
+                    await this.glyphConfig.updateModel(model);
+                    await this.glyphConfig.updateEndpoint(config.baseUrl);
+                    await this.glyphConfig.updateProviderType(provider);
+                    await this.glyphConfig.addRegisteredModel(provider, model, config.baseUrl);
+
+                    this.statusBar.setModel(model);
+                    return { success: true, message: `Successfully connected to ${model}` };
+                }
+
+                return {
+                    success: false,
+                    message: `Could not verify connection to ${provider}. The endpoint may be temporarily unavailable.`,
+                };
             }
 
             return {
                 success: false,
-                message: `Could not verify connection to ${provider}. The endpoint may be temporarily unavailable.`,
+                message: 'Server client not available. Is the glyph-server running?',
             };
         } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);

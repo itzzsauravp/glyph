@@ -2,9 +2,8 @@ import * as vscode from 'vscode';
 import {
     type EditorService,
     type EditorUIService,
-    type LLMService,
     type RangeTrackerService,
-    type RepositoryIndexerService,
+    type ServerClient,
     type StatusBarService,
     StatusState,
 } from '../../services';
@@ -13,11 +12,10 @@ import BaseCommand from '../core/base.command';
 export default class GenerateCode extends BaseCommand {
     constructor(
         private readonly editorService: EditorService,
-        private readonly llmService: LLMService,
+        private readonly serverClient: ServerClient,
         private readonly editorUI: EditorUIService,
         private readonly statusBar: StatusBarService,
         private readonly rangeTracker: RangeTrackerService,
-        private readonly repositoryIndexer: RepositoryIndexerService,
     ) {
         super();
     }
@@ -71,26 +69,14 @@ export default class GenerateCode extends BaseCommand {
 
             this.editorUI.showLoadingGhostText(editor, 'Generating', startPos);
 
-            // Hybrid execution: use tool-based code reading for capable models, RAG for others
-            let resultFromLLM: string;
+            // Delegate entirely to the server — it handles tool/RAG decisions
             const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-            const supportsTools = workspaceRoot ? await this.llmService.testToolCallSupport() : false;
-
-            if (supportsTools) {
-                resultFromLLM = await this.llmService.generateCodeWithTools(
-                    prompt,
-                    codeContext,
-                    editor.document.languageId,
-                    workspaceRoot,
-                );
-            } else {
-                resultFromLLM = await this.llmService.generateWithProjectContext(
-                    prompt,
-                    codeContext,
-                    editor.document.languageId,
-                    this.repositoryIndexer,
-                );
-            }
+            const resultFromLLM = await this.serverClient.generateCode(
+                prompt,
+                codeContext,
+                editor.document.languageId,
+                { workspaceRoot, useTools: true },
+            );
 
             const tempRange = this.rangeTracker.getRange(tempTrackerId);
             if (tempRange) {

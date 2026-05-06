@@ -76,12 +76,13 @@ export default class StatusBarService {
     private update(): void {
         let icon = '$(check)';
         let text = `Glyph: ${this.currentModel || 'No Model'}`;
-        let tooltip = 'Glyph is healthy';
+        let tooltip = 'Glyph is connected to server';
 
         if (!this.isHealthy) {
-            icon = '$(circle-slash)';
-            text = 'Glyph: Offline';
-            tooltip = 'AI Service unreachable';
+            icon = '$(cloud-off)';
+            text = 'Glyph: Server Offline';
+            tooltip = 'glyph-server is unreachable. Click to configure or start Docker.';
+            this.statusBarItem.command = 'glyph.startServer';
         } else if (
             this.currentState === StatusState.GeneratingCode ||
             this.currentState === StatusState.GeneratingDocs
@@ -89,6 +90,9 @@ export default class StatusBarService {
             icon = '$(sync~spin)';
             text = `Glyph: ${this.currentState}...`;
             tooltip = 'AI is generating results';
+            this.statusBarItem.command = 'glyph.model_select';
+        } else {
+            this.statusBarItem.command = 'glyph.model_select';
         }
 
         this.statusBarItem.text = `${icon} ${text}`;
