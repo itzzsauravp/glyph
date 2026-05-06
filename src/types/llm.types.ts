@@ -26,3 +26,16 @@ export interface CloudRegisteryEntry {
 }
 
 export type ICloudRegistery = Record<string, CloudRegisteryEntry>;
+
+/**
+ * Client configuration sent to the server with every request.
+ * The extension builds this from VS Code settings + SecretStorage.
+ */
+export interface ClientConfig {
+    model: string;
+    providerType: string;
+    endpoint: string;
+    apiKey: string;
+    embeddingModel?: string;
+    reasoningBudgetTokens?: number;
+}
