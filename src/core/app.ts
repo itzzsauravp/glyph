@@ -16,37 +16,34 @@ import {
     CommandManagerService,
     EditorService,
     EditorUIService,
-    LLMHealth,
-    LLMService,
     ModelRegistryService,
     RangeTrackerService,
-    RepositoryIndexerService,
+    ServerClient,
     StatusBarService,
-    VectorDatabaseService,
 } from '../services';
+import BackgroundIndexerService from '../services/core/background-indexer.service';
 
 /**
  * Root application class — owns every service and command.
  *
- * Initialization follows a strict sequential order so that every
- * dependency is fully resolved before it is handed to its consumers.
+ * v0.5.0 Architecture:
+ *   Config → ServerClient → Health Check → ModelRegistry → UI → Commands
  *
- *   Config → Health → VectorDB → LLMService → ModelRegistry → RepoIndexer → UI → Commands
+ * All heavy operations (LLM inference, vector indexing, tool execution)
+ * are delegated to glyph-server via REST + Socket.IO.
  */
 export default class GlyphApp {
     private readonly context: vscode.ExtensionContext;
     private readonly commandManager: CommandManagerService;
 
     private glyphConfig!: GlyphConfig;
-    private llmHealth!: LLMHealth;
-    private llmService!: LLMService;
+    private serverClient!: ServerClient;
     private modelRegistry!: ModelRegistryService;
-    private vectorDatabase!: VectorDatabaseService;
-    private repositoryIndexer!: RepositoryIndexerService;
     private editorService!: EditorService;
     private editorUI!: EditorUIService;
     private statusBar!: StatusBarService;
     private rangeTracker!: RangeTrackerService;
+    private backgroundIndexer!: BackgroundIndexerService;
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
@@ -59,18 +56,12 @@ export default class GlyphApp {
     public async initialize(): Promise<void> {
         // ── Core Config ─────────────────────────────────────
         this.glyphConfig = new GlyphConfig(this.context);
-        this.llmHealth = new LLMHealth(this.glyphConfig);
 
-        // ── Database ────────────────────────────────────────
-        this.vectorDatabase = await VectorDatabaseService.connectGlobalDatabase();
-        const workspaceTable = await this.vectorDatabase.initializeWorkspaceTable();
+        // ── Server Client ───────────────────────────────────
+        this.serverClient = new ServerClient(this.glyphConfig, this.context);
 
-        // ── AI Services ─────────────────────────────────────
-        this.llmService = new LLMService(this.glyphConfig, workspaceTable);
-        this.modelRegistry = new ModelRegistryService(this.glyphConfig);
-
-        // ── Indexer ─────────────────────────────────────────
-        this.repositoryIndexer = new RepositoryIndexerService(workspaceTable, this.llmService);
+        // ── Model Registry ──────────────────────────────────
+        this.modelRegistry = new ModelRegistryService(this.glyphConfig, this.serverClient);
 
         // ── UI Services ─────────────────────────────────────
         this.editorUI = new EditorUIService();
@@ -85,16 +76,49 @@ export default class GlyphApp {
         // ── Commands ────────────────────────────────────────
         this.registerCommands();
 
-        // ── Preflight ───────────────────────────────────────
-        const preflightPassed = await this.llmHealth.preflight();
-        this.statusBar.setHealthy(preflightPassed);
+        // ── Server Connection ───────────────────────────────
+        // Listen for connection state changes to update status bar
+        this.serverClient.onConnectionChange((connected) => {
+            this.statusBar.setHealthy(connected);
+            if (!connected) {
+                console.warn('[GlyphApp] Server connection lost');
+            }
+        });
 
-        if (!preflightPassed) {
-            vscode.window.showErrorMessage('Preflight failed — please check the logs for details.');
-            return;
+        // Connect to the server
+        await this.serverClient.connect();
+
+        // Initial health check
+        const serverHealthy = await this.serverClient.isServerReachable();
+        this.statusBar.setHealthy(serverHealthy);
+
+        if (!serverHealthy) {
+            vscode.window
+                .showWarningMessage(
+                    'Glyph: Cannot reach glyph-server. Is it running?',
+                    'Start Docker',
+                    'Configure URL',
+                )
+                .then((action) => {
+                    if (action === 'Start Docker') {
+                        vscode.commands.executeCommand('glyph.startServer');
+                    } else if (action === 'Configure URL') {
+                        vscode.commands.executeCommand(
+                            'workbench.action.openSettings',
+                            'glyph.serverUrl',
+                        );
+                    }
+                });
         }
 
+        // Health polling every 30s
         this.startHealthPolling();
+
+        // ── Background Indexer ─────────────────────────────────
+        this.backgroundIndexer = new BackgroundIndexerService(this.serverClient, this.context);
+        this.backgroundIndexer.start().catch((err) => {
+            console.error('[GlyphApp] Background indexer failed:', err);
+        });
     }
 
     /**
@@ -106,29 +130,27 @@ export default class GlyphApp {
         this.commandManager.register(
             new GenerateCode(
                 this.editorService,
-                this.llmService,
+                this.serverClient,
                 this.editorUI,
                 this.statusBar,
                 this.rangeTracker,
-                this.repositoryIndexer,
             ),
         );
 
         this.commandManager.register(
             new GenerateDocs(
                 this.editorService,
-                this.llmService,
+                this.serverClient,
                 this.editorUI,
                 this.statusBar,
                 this.rangeTracker,
-                this.repositoryIndexer,
             ),
         );
 
         this.commandManager.register(new ModelSelect(this.modelRegistry));
 
         this.commandManager.register(
-            new CloudProviderOrchestrator(this.context, this.statusBar, this.glyphConfig),
+            new CloudProviderOrchestrator(this.context, this.statusBar, this.glyphConfig, this.serverClient),
         );
 
         this.commandManager.register(
@@ -140,9 +162,8 @@ export default class GlyphApp {
         const brainstorm = new Brainstorm(
             this.context,
             this.glyphConfig,
-            this.llmService,
+            this.serverClient,
             this.modelRegistry,
-            this.repositoryIndexer,
         );
 
         this.commandManager.register(brainstorm);
@@ -152,15 +173,25 @@ export default class GlyphApp {
         );
 
         this.commandManager.register(new ReloadConfig(this.glyphConfig));
-        this.commandManager.register(new RunDiagnosticsCommand(this.llmHealth));
+        this.commandManager.register(new RunDiagnosticsCommand(this.serverClient));
+
+        // ── Start Server command ────────────────────────────
+        this.context.subscriptions.push(
+            vscode.commands.registerCommand('glyph.startServer', async () => {
+                const terminal = vscode.window.createTerminal('Glyph Server');
+                terminal.sendText('docker compose up -d');
+                terminal.show();
+                vscode.window.showInformationMessage('Glyph: Starting server via Docker...');
+            }),
+        );
     }
 
     /**
-     * Polls the active provider for health every 30 seconds.
+     * Polls the server for health every 30 seconds.
      */
     private startHealthPolling(): void {
         setInterval(async () => {
-            const reachable = await this.llmHealth.isReachable();
+            const reachable = await this.serverClient.isServerReachable();
             this.statusBar.setHealthy(reachable);
         }, 30_000);
     }

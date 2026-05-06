@@ -4,7 +4,7 @@
     "displayName": "Glyph: Micro AI Helper",
     "publisher": "sauravparajulee",
     "description": "A privacy-first, backend-agnostic AI assistant for code generation, documentation, and brainstorming.",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "icon": "images/icon.png",
     "repository": {
         "type": "git",
@@ -25,7 +25,7 @@
     "engines": {
         "vscode": "^1.110.0"
     },
-    "activationEvents": [],
+    "activationEvents": ["onStartupFinished"],
     "main": "./dist/extension.js",
     "contributes": {
         "commands": [
@@ -73,6 +73,10 @@
             {
                 "command": "glyph.run_diagnostics",
                 "title": "Glyph: Run Diagnostics"
+            },
+            {
+                "command": "glyph.startServer",
+                "title": "Glyph: Start Server (Docker)"
             }
         ],
         "configuration": {
@@ -120,6 +124,46 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Require explicit confirmation before executing agentic tool actions (like creating/editing files). Disable to auto-grant all tool permissions."
+                },
+                "glyph.serverUrl": {
+                    "type": "string",
+                    "default": "http://localhost:9741",
+                    "description": "URL of the Glyph server (e.g. http://localhost:9741 or http://your-remote-server:9741)."
+                },
+                "glyph.serverAuthToken": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Bearer token for authenticating with a remote glyph-server. Leave empty for local servers."
+                },
+                "glyph.chat.memoryLimit": {
+                    "type": "number",
+                    "default": 15,
+                    "description": "Maximum number of messages to keep in Brainstorm chat history."
+                },
+                "glyph.chat.structureAware": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Include project directory tree in chat context for better code awareness."
+                },
+                "glyph.chat.codebaseAware": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable RAG-based codebase context retrieval for more relevant answers."
+                },
+                "glyph.chat.toolsEnabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Allow the AI to read/write files and run commands in your workspace."
+                },
+                "glyph.reasoning.budgetTokens": {
+                    "type": "number",
+                    "default": 10000,
+                    "description": "Token budget for thinking/reasoning models (e.g. Anthropic, Google)."
+                },
+                "glyph.autoStartServer": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Automatically start the glyph-server Docker container when the extension activates."
                 }
             }
         },
@@ -206,14 +250,8 @@
         "webpack-cli": "^6.0.1"
     },
     "dependencies": {
-        "@ai-sdk/anthropic": "^3.0.66",
-        "@ai-sdk/google": "^3.0.58",
-        "@ai-sdk/openai": "^3.0.50",
-        "@lancedb/lancedb": "^0.27.2",
-        "ai": "^6.0.146",
         "highlight.js": "^11.11.1",
         "markdown-it": "^14.1.1",
-        "tree-node-cli": "^3.0.0",
-        "zod": "^4.3.6"
+        "socket.io-client": "^4.8.1"
     }
 }
